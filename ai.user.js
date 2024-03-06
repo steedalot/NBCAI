@@ -43,20 +43,34 @@
                 width: 80%;
                 height: 80%;
                 overflow-y: auto; /* Enable vertical scroll inside the modal */
+                display: flex;
+                flex-direction: column; /* Stack children vertically */
             }
             .chat-container {
                 border: 1px solid #ccc;
                 padding: 10px;
                 margin-bottom: 20px;
                 height: 60%; /* Adjust as needed */
-                overflow-y: auto; /* Enable scrolling for overflow */
+                overflow-y: auto; /* Scrollable */
             }
-            
+            .input-container {
+                display: flex;
+                justify-content: space-between;
+                padding: 10px;
+            }
             .ai-message {
                 background-color: #e0e0e0;
                 padding: 5px 10px;
                 margin: 5px 0;
                 border-radius: 5px;
+            }
+            .user-input {
+                width: calc(100% - 60px); /* Adjust width as needed */
+                padding: 5px;
+                margin: 5px 0;
+                box-sizing: border-box; /* Ensures padding doesn't add to the width */
+                flex-grow: 1; /* Allow input to take up available space */
+                margin-right: 10px; /* Space between input and button */
             }
         `;
 
@@ -84,7 +98,10 @@
 
         // Add content to the modal (e.g., text, buttons)
         var content = document.createElement('p');
-        content.textContent = 'Your text or other content here...';
+        content.style.fontSize="24px";
+        content.style.fontWeight="bold";
+        content.style.textAlign="center";
+        content.textContent = '🤖 KI-Tutor';
         modal.appendChild(content);
 
         var closeButton = document.createElement('button');
@@ -92,9 +109,47 @@
         closeButton.onclick = function() { overlay.style.display = 'none'; };
         modal.appendChild(closeButton);
 
+        // Create chat container
+        var chatContainer = document.createElement('div');
+        chatContainer.id = 'chatContainer';
+        chatContainer.className = 'chat-container';
+        modal.appendChild(chatContainer);
+
+        // Create input container
+        var inputContainer = document.createElement('div');
+        inputContainer.className = 'input-container';
+
+        // Create user input box
+        var userInput = document.createElement('input');
+        userInput.id = 'userInput';
+        userInput.className = 'user-input';
+        userInput.setAttribute('type', 'text');
+        userInput.setAttribute('placeholder', 'Tippe hier deine Antwort ein.');
+        inputContainer.appendChild(userInput);
+
+        // Create send button
+        var sendButton = document.createElement('button');
+        sendButton.textContent = 'Senden';
+        // ... Add event listener for sendButton ...
+        inputContainer.appendChild(sendButton);
+
         // Append the modal to the overlay, and then the overlay to the body
+        modal.appendChild(inputContainer);
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+    }
+
+    function typeMessage(message, containerId, interval) {
+        let container = document.getElementById(containerId);
+        let index = 0;
+        let typingInterval = setInterval(function() {
+            if (index < message.length) {
+                container.textContent += message.charAt(index);
+                index++;
+            } else {
+                clearInterval(typingInterval);
+            }
+        }, interval);
     }
 
     // Function to open the modal
@@ -106,6 +161,11 @@
             modalOverlay = document.getElementById('modalOverlay');
         }
         modalOverlay.style.display = 'block';
+        
+        var chatContainer = document.getElementById('chatContainer');
+        chatContainer.textContent = '';
+
+        typeMessage("Willkommen beim KI-Tutor! Was ist die Formel für die Beschleunigung?", "chatContainer", 100); // Adjust typing speed with interval
     }
 
     // Add the openModal function to your existing button's event listener
@@ -114,6 +174,7 @@
         yourButton.addEventListener('click', openModal);
     }
 
+    
 
 // Remember to include your CSS as well
 
