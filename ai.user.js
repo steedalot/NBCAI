@@ -302,6 +302,13 @@
         for (var key in promptCards) {
             console.log("Prompt: " + key + " - Text: " + promptCards[key]);
         }
+        var modal = document.getElementById('modal');
+        if (modal) {
+            console.log("Modal gefunden!");
+        }
+        else {
+            console.log("Modal nicht gefunden!");
+        }
     }
 
     //System vorbereiten (wichtige Daten abrufen und speichern)
@@ -338,7 +345,7 @@
 
         //Modal div erstellen
         var modal = document.createElement('div');
-        modal.id = 'myModal';
+        modal.id = 'modal';
         modal.className = 'modal';
 
         //Settings div erstellen
@@ -426,14 +433,14 @@
 
     //Modal schließen
     function closeModal() {
-        var modal = document.getElementById('myModal');
+        var modal = document.getElementById('modal');
         modal.remove();
         var overlay = document.getElementById('modalOverlay');
         overlay.remove();
     }
 
     function modalChooseContent() {
-        var modal = document.getElementById('myModal');
+        var modal = document.getElementById('modal');
         var content = document.createElement('div');
         content.id = 'modalContent';
         modal.appendChild(content);
