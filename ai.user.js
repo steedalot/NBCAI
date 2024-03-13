@@ -14,9 +14,9 @@
 (function() {
     'use strict';
 
-    GM_registerMenuCommand("interne Tests starten", function() { checkForBoard(startTests); });
-    GM_registerMenuCommand("Overlay starten", function() { checkForBoard(startModal); });
-    GM_registerMenuCommand("Modal füllen", function() { checkForBoard(modalChooseContent); });
+    GM_registerMenuCommand("preflight tests", function() { checkForBoard(startTests); });
+    GM_registerMenuCommand("System vorbereiten", function() { checkForBoard(prepareSystem); });
+
 
     function checkForBoard(calledFunction) {
         var url = unsafeWindow.location.href;
@@ -51,7 +51,8 @@
         }
 
         .settings {
-            flex: 0 0 20%;
+            flex: 0 0 30%;
+            padding: 10px;
             height: 100%;
             background-color: #f0f0f0;
         }
@@ -59,11 +60,12 @@
         .chat {
             display: flex;
             flex-direction: column;
-            flex: 0 0 80%;
+            flex: 0 0 70%;
         }
 
         .chat-history {
             flex: 0 1 80%;
+            padding: 10px;
         }
 
         .input-area {
@@ -111,14 +113,16 @@
     
     `;
 
+    const aiBoardId = "65afcedc5b38f1915d3b476e";
     var me = {};
     var auth_token = "";
     var board_id = "";
-    const sourceCards = [];
-    sourceCards["content"] = "65e9e885ebac7ab7f6482d81";
+    var board_layout = {};
+    var promptCards = [];
 
 
-    // get the auth token
+
+    //Auth Token aus Cookie abrufen
     function getAuthToken() {
         console.log("Authorization Token wird abgerufen.");
         var cookies = document.cookie.split('; ');
@@ -130,29 +134,37 @@
             if(cookieName === 'jwt') {
                 console.log('Gefundenes Authorization Token:', cookieValue);
                 auth_token = cookieValue;
-                break;
+                return true;
             }
         }
+        console.log('Kein Authorization Token gefunden.');
+        return false;
     }
 
-    //get the school id
+    //ID der Schule abrufen
     function getMe() {
-        console.log("Accountdaten werden abgerufen.");
-        GM_xmlhttpRequest({
-            method: "GET",
-            url: "https://niedersachsen.cloud/api/v1/me",
-            headers: {
-                "Authorization": "Bearer " + auth_token
-            },
-            withCredentials: true,
-            onload: function(response) {
-                var data = JSON.parse(response.responseText);
-                me = data;
-            }
+        return new Promise((resolve, reject) => {
+            console.log("Accountdaten werden abgerufen.");
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://niedersachsen.cloud/api/v1/me",
+                headers: {
+                    "Authorization": "Bearer " + auth_token
+                },
+                withCredentials: true,
+                onload: function(response) {
+                    var data = JSON.parse(response.responseText);
+                    me = data;
+                    resolve(me);
+                },
+                onerror: function(error) {
+                    reject(error);
+                }
+            });
         });
     }
 
-    //Get the board id
+    //ID des Boards abrufen
     function getBoardId() {
         console.log("Board ID wird abgerufen.");
         var url = unsafeWindow.location.href;
@@ -160,54 +172,116 @@
         console.log("ID des Boards: " + board_id);
     }
 
-    function getBoardLayout() {
-        console.log("Übersicht des Boards wird abgerufen.");
-        if(!auth_token) {
-            getAuthToken();
-        }
-        GM_xmlhttpRequest({
-            method: "GET",
-            url: "https://niedersachsen.cloud/api/v3/boards/" + board_id,
-            headers: {
-                "Authorization": "Bearer " + auth_token
-            },
-            withCredentials: true,
-            onload: function(response) {
-                var data = JSON.parse(response.responseText);
+    //Layout eines beliebigen Boards abrufen
+    function getBoardLayout(id) {
+        return new Promise((resolve, reject) => {
+            console.log("Übersicht des Boards wird abgerufen.");
+            if(!auth_token) {
+                getAuthToken();
             }
-        });
-    }
-
-    function getCardTextContent(cardId) {
-        if(!auth_token) {
-            getAuthToken();
-        }
-        console.log("Hole den Textinhalt der Karte mit der ID: " + cardId);
-        GM_xmlhttpRequest({
-            method: "GET",
-            url: "https://niedersachsen.cloud/api/v3/cards?ids=" + cardId,
-            headers: {
-                "Authorization": "Bearer " + auth_token
-            },
-            withCredentials: true,
-            onload: function(response) {
-                var data = JSON.parse(response.responseText);
-                //Loop über die Elemente der Karte
-                var allText = "";
-                var elements = data.data[0].elements;
-                for(var i = 0; i < elements.length; i++) {
-                    var element = elements[i];
-                    if(element.content && element.content.text) {
-                        allText += element.content.text;
-                    }
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://niedersachsen.cloud/api/v3/boards/" + id,
+                headers: {
+                    "Authorization": "Bearer " + auth_token
+                },
+                withCredentials: true,
+                onload: function(response) {
+                    const data = JSON.parse(response.responseText);
+                    resolve(data);    
+                },
+                onerror: function(error) {
+                    reject(error);
                 }
-                console.log("Textinhalt der Karte: " + allText);
-                return allText;
-            }
+            });
         });
     }
 
- 
+    //Layout des aktiven Boards speichern
+    function saveBoardLayout(id) {
+        return new Promise((resolve, reject) => {
+            getBoardLayout(id)
+                .then(data => {
+                    board_layout = data;
+                    resolve();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    reject(error);
+                });
+        });
+    }
+    
+
+    //System-Prompts aus dem KI-Board abrufen
+    function getSystemPrompts(id) {
+        return new Promise((resolve, reject) => {
+            getBoardLayout(id)
+                .then(data => {
+                    const promptsColumn = data.columns.filter(function(column) {
+                        return column.title === "Prompts";
+                    })[0];
+    
+                    const cardIds = promptsColumn.cards.map(function(card) {
+                        return card.cardId;
+                    });
+    
+                    cardIds.forEach(function(cardId) {
+                        getCardTextContent(cardId)
+                            .then(result => {
+                                promptCards[result.title] = result.allText;
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                reject(error);
+                            });
+                    });
+    
+                    resolve();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    reject(error);
+                });
+        });
+    }
+
+    //kompletten Textinhalt einer Karte abrufen
+    function getCardTextContent(cardId) {
+        return new Promise((resolve, reject) => {
+            if(!auth_token) {
+                getAuthToken();
+            }
+            console.log("Hole den Textinhalt der Karte mit der ID: " + cardId);
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://niedersachsen.cloud/api/v3/cards?ids=" + cardId,
+                headers: {
+                    "Authorization": "Bearer " + auth_token
+                },
+                withCredentials: true,
+                onload: function(response) {
+                    var data = JSON.parse(response.responseText);
+                    //Loop über die Elemente der Karte
+                    var allText = "";
+                    var title = data.data[0].title;
+                    var elements = data.data[0].elements;
+                    for(var i = 0; i < elements.length; i++) {
+                        var element = elements[i];
+                        if(element.content && element.content.text) {
+                            allText += element.content.text;
+                        }
+                    }
+                    resolve({allText: allText, title: title});
+                },
+                onerror: function(error) {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    //Testfunktionen
     function startTests() {
         console.log("Verbindungen werden getestet.");
         getAuthToken();
@@ -216,9 +290,32 @@
         console.log("Name der Schule: " + me.schoolName);
         console.log("Vorname: " + me.firstName);
         getBoardId();
-        getBoardLayout();
+        
     }
 
+    function variableTests() {
+        console.log("Accountdaten: ", me);
+        console.log("Authorization Token: ", auth_token);
+        console.log("Board ID: ", board_id);
+        console.log("Board Layout: ", board_layout);
+        console.log("Prompt Cards:");
+        for (var key in promptCards) {
+            console.log("Prompt: " + key + " - Text: " + promptCards[key]);
+        }
+    }
+
+    //System vorbereiten (wichtige Daten abrufen und speichern)
+    async function prepareSystem() {
+        console.log("System wird vorbereitet.");
+        getBoardId();
+        if (getAuthToken()) {
+            await Promise.all([getMe(), saveBoardLayout(board_id), getSystemPrompts(aiBoardId)]);
+            GM_registerMenuCommand("Overlay starten", startModal);
+            GM_registerMenuCommand("Test des Systems", variableTests);
+        }
+    }
+
+    //CSS für das Modal erstellen und im Head einfügen
     function createStyles() {
         var styleSheet = document.createElement("style");
         styleSheet.setAttribute("type", "text/css");
@@ -226,6 +323,7 @@
         document.head.appendChild(styleSheet);
     }
    
+    //Modal erstellen und einfügen
     function startModal() {
         createStyles();
         console.log("Modal wird eingerichtet.");
@@ -238,15 +336,24 @@
             }
         });
 
-        // Create the modal div
+        //Modal div erstellen
         var modal = document.createElement('div');
         modal.id = 'myModal';
         modal.className = 'modal';
 
-        // Create the settings div
+        //Settings div erstellen
         var settings = document.createElement('div');
         settings.id = 'settings';
         settings.className = 'settings';
+        settings.innerHTML = `
+            <b>Einstellungen</b><br>
+            <br>
+            Wähle einen Prompt aus:<br>
+            <br>
+            <select id="promptSelect" style="all: revert;">
+                ${Object.keys(promptCards).map(title => `<option value="${promptCards[title]}">${title}</option>`).join('')}
+            </select>
+        `
 
         //Create the chat div
         var chat = document.createElement('div');
@@ -296,8 +403,28 @@
 
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+
+        renderToModal("Hallo " + me.firstName + "! Wie geht es dir heute?");
     }
 
+    //Text in das Modal rendern
+    function renderToModal(text) {
+        var modal = document.getElementById('chatHistory');
+        if (!modal) {
+            console.log("Modal nicht gefunden! Text konnte nicht gerendert werden.");
+        }
+        else {
+            var message = document.getElementById('modalText');
+            if (!message) {
+                var message = document.createElement('div');
+                message.id = 'modalText';
+            }
+            message.innerHTML = text;
+            modal.appendChild(message);
+        }
+    }
+
+    //Modal schließen
     function closeModal() {
         var modal = document.getElementById('myModal');
         modal.remove();
