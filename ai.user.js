@@ -118,7 +118,9 @@
     var auth_token = "";
     var board_id = "";
     var board_layout = {};
-    var promptCards = [];
+    var prompt_cards = [];
+    var model_cards = [];
+    var chat_history = [];
 
 
 
@@ -229,14 +231,45 @@
                     cardIds.forEach(function(cardId) {
                         getCardTextContent(cardId)
                             .then(result => {
-                                promptCards[result.title] = result.allText;
+                                prompt_cards[result.title] = result.allText;
                             })
                             .catch(error => {
                                 console.error('Error:', error);
                                 reject(error);
                             });
                     });
+                    resolve();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    reject(error);
+                });
+        });
+    }
+
+    //Modelle aus dem KI-Board abrufen
+    function getModels(id) {
+        return new Promise((resolve, reject) => {
+            getBoardLayout(id)
+                .then(data => {
+                    const modelsColumn = data.columns.filter(function(column) {
+                        return column.title === "Modelle";
+                    })[0];
     
+                    const cardIds = modelsColumn.cards.map(function(card) {
+                        return card.cardId;
+                    });
+    
+                    cardIds.forEach(function(cardId) {
+                        getCardTextContent(cardId)
+                            .then(result => {
+                                model_cards[result.title] = result.allText;
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                reject(error);
+                            });
+                    });
                     resolve();
                 })
                 .catch(error => {
@@ -272,7 +305,8 @@
                             allText += element.content.text;
                         }
                     }
-                    resolve({allText: allText, title: title});
+                    var clearedText = allText.replace(/<[^>]*>?/gm, '');
+                    resolve({allText: clearedText, title: title});
                 },
                 onerror: function(error) {
                     reject(error);
@@ -299,8 +333,12 @@
         console.log("Board ID: ", board_id);
         console.log("Board Layout: ", board_layout);
         console.log("Prompt Cards:");
-        for (var key in promptCards) {
-            console.log("Prompt: " + key + " - Text: " + promptCards[key]);
+        for (var key in prompt_cards) {
+            console.log("Prompt: " + key + " - Text: " + prompt_cards[key]);
+        }
+        console.log("Model Cards:");
+        for (var key in model_cards) {
+            console.log("Model: " + key + " - Text: " + model_cards[key]);
         }
         var modal = document.getElementById('modal');
         if (modal) {
@@ -316,7 +354,7 @@
         console.log("System wird vorbereitet.");
         getBoardId();
         if (getAuthToken()) {
-            await Promise.all([getMe(), saveBoardLayout(board_id), getSystemPrompts(aiBoardId)]);
+            await Promise.all([getMe(), saveBoardLayout(board_id), getSystemPrompts(aiBoardId), getModels(aiBoardId)]);
             GM_registerMenuCommand("Overlay starten", startModal);
             GM_registerMenuCommand("Test des Systems", variableTests);
         }
@@ -353,14 +391,20 @@
         settings.id = 'settings';
         settings.className = 'settings';
         settings.innerHTML = `
-            <b>Einstellungen</b><br>
-            <br>
+            <b>Einstellungen</b><br><br>
             Wähle einen Prompt aus:<br>
-            <br>
             <select id="promptSelect" style="all: revert;">
-                ${Object.keys(promptCards).map(title => `<option value="${promptCards[title]}">${title}</option>`).join('')}
+                ${Object.keys(prompt_cards).map(title => `<option value="${prompt_cards[title]}">${title}</option>`).join('')}
             </select>
-        `
+            <br>
+            <br>
+            Wähle ein Modell aus:<br>
+            <select id="modelSelect" style="all: revert;">
+                ${Object.keys(model_cards).map(title => `<option value="${model_cards[title]}">${title}</option>`).join('')}
+            </select>
+        `;
+        var selected_model = Object.values(model_cards)[0];
+
 
         //Create the chat div
         var chat = document.createElement('div');
@@ -384,6 +428,7 @@
 
         var input = document.createElement('textarea');
         input.id = 'input';
+        input.value = Object.values(prompt_cards)[0];
         input.className = 'input';
 
         inputField.appendChild(input);
@@ -393,7 +438,7 @@
         sendButtonField.className = 'send-button-field';
 
         var sendButton = document.createElement('button');
-        sendButton.innerHTML = 'Senden';
+        sendButton.innerHTML = 'Beginnen';
         sendButton.className = 'send-button';
         sendButton.id = 'sendButton';
 
@@ -411,8 +456,50 @@
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
-        renderToModal("Hallo " + me.firstName + "! Wie geht es dir heute?");
+        //Create the event listeners for the settings
+        var promptSelect = document.getElementById('promptSelect');
+        var modelSelect = document.getElementById('modelSelect');
+        promptSelect.addEventListener('change', function() {
+            var selected_prompt = promptSelect.options[promptSelect.selectedIndex].value;
+            console.log("Selected Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
+            input.value = selected_prompt;
+            
+        });
+        modelSelect.addEventListener('change', function() {
+            selected_model = modelSelect.options[modelSelect.selectedIndex].value;
+            console.log("Selected Model: ", modelSelect.options[modelSelect.selectedIndex].text);
+        });
+
+        //Create the event listener for the send button
+        sendButton.addEventListener('click', function() {
+            buttonClicked(sendButton.innerHTML, input.value, selected_model);
+            sendButton.innerHTML = "Senden";
+            input.value = "";
+        });
+
+        
     }
+
+    //button is clicked
+    function buttonClicked(action, text) {
+        console.log("Button clicked!");
+        if (action === "Beginnen") {
+            var text_with_name = text.replace("[name]", me.firstName);
+            chat_history[0] = {};
+            chat_history[0]["system"] = text_with_name;
+            console.log("Chat History: ", chat_history);
+            //send first message to api
+        }
+        else if (action === "Senden") {
+            chat_history[chat_history.length] = {};
+            chat_history[chat_history.length]["user"] = text;
+            console.log("Chat History: ", chat_history);
+            //send next message to api
+        }
+    }
+
+    //send message to the LLM API
+
 
     //Text in das Modal rendern
     function renderToModal(text) {
