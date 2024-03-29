@@ -8,6 +8,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
+// @connect      136.243.1.228
 // ==/UserScript==
 
 
@@ -55,6 +56,13 @@
             padding: 10px;
             height: 100%;
             background-color: #f0f0f0;
+            position: relative;
+        }
+
+        .tokencount {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
         }
 
         .chat {
@@ -100,6 +108,23 @@
             opacity: 1;
         }
 
+        .reset-button {
+            background-color: #FF5733;
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            cursor: pointer;
+            opacity: 0.9;
+            border-radius: 4px;
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+        }
+
+        .reset-button:hover {
+            opacity: 1;
+        }
+
         .input {
             margin: 10px;
             border: 1px solid #ddd;
@@ -113,6 +138,7 @@
     
     `;
 
+    
     const aiBoardId = "65afcedc5b38f1915d3b476e";
     var me = {};
     var auth_token = "";
@@ -149,7 +175,7 @@
             console.log("Accountdaten werden abgerufen.");
             GM_xmlhttpRequest({
                 method: "GET",
-                url: "https://niedersachsen.cloud/api/v1/me",
+                url: "https://niedersachsen.cloud/api/v3/me",
                 headers: {
                     "Authorization": "Bearer " + auth_token
                 },
@@ -406,6 +432,17 @@
         var selected_model = Object.values(model_cards)[0];
 
 
+        //Create the reset button
+        var resetButton = document.createElement('button');
+        resetButton.innerHTML = 'Reset';
+        resetButton.className = 'reset-button';
+        resetButton.id = 'resetButton';
+
+        //Create the token count div
+        var tokenCount = document.createElement('div');
+        tokenCount.id = 'tokenCount';
+        tokenCount.className = 'tokencount';
+
         //Create the chat div
         var chat = document.createElement('div');
         chat.id = 'chat';
@@ -431,6 +468,8 @@
         input.value = Object.values(prompt_cards)[0];
         input.className = 'input';
 
+
+
         inputField.appendChild(input);
 
         var sendButtonField = document.createElement('div');
@@ -443,6 +482,8 @@
         sendButton.id = 'sendButton';
 
         sendButtonField.appendChild(sendButton);
+        settings.appendChild(resetButton);
+        settings.appendChild(tokenCount);
 
         inputArea.appendChild(inputField);
         inputArea.appendChild(sendButtonField);
@@ -470,9 +511,33 @@
             console.log("Selected Model: ", modelSelect.options[modelSelect.selectedIndex].text);
         });
 
+        //Create the event listener for the input field
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                buttonClicked(sendButton.innerHTML, input.value);
+                sendButton.innerHTML = "Senden";
+                input.value = "";
+            }
+            else {
+                countTokens(input.value);
+            }
+        });
+
+
+        //Create the event listener for the reset button
+        resetButton.addEventListener('click', function() {
+            chat_history = [];
+            renderToModal("");
+            promptSelect.selectedIndex = 0;
+            modelSelect.selectedIndex = 0;
+            input.value = Object.values(prompt_cards)[0];
+            sendButton.innerHTML = "Beginnen";
+        });
+
+
         //Create the event listener for the send button
         sendButton.addEventListener('click', function() {
-            buttonClicked(sendButton.innerHTML, input.value, selected_model);
+            buttonClicked(sendButton.innerHTML, input.value);
             sendButton.innerHTML = "Senden";
             input.value = "";
         });
@@ -480,11 +545,20 @@
         
     }
 
-    //button is clicked
+    //count number of tokens
+    function countTokens(input) {
+        var all_text = chat_history.map(obj => Object.values(obj)[0]).join(' ');
+        all_text += input;
+        var counted_tokens = all_text.split(' ').length * 1.2;
+        var tokenCount = document.getElementById('tokenCount');
+        tokenCount.innerHTML = "Tokenanzahl (grob): <b>" + Math.round(counted_tokens) + "</b>";
+    }
+
+    //send button is clicked
     function buttonClicked(action, text) {
         console.log("Button clicked!");
         if (action === "Beginnen") {
-            var text_with_name = text.replace("[name]", me.firstName);
+            var text_with_name = text.replace("[name]", me.user.firstName);
             chat_history[0] = {};
             chat_history[0]["system"] = text_with_name;
             console.log("Chat History: ", chat_history);
@@ -492,7 +566,7 @@
         }
         else if (action === "Senden") {
             chat_history[chat_history.length] = {};
-            chat_history[chat_history.length]["user"] = text;
+            chat_history[chat_history.length-1]["user"] = text;
             console.log("Chat History: ", chat_history);
             //send next message to api
         }
@@ -512,9 +586,10 @@
             if (!message) {
                 var message = document.createElement('div');
                 message.id = 'modalText';
+                modal.appendChild(message);
             }
             message.innerHTML = text;
-            modal.appendChild(message);
+            
         }
     }
 
