@@ -2,8 +2,8 @@
 // @name         NBCAI
 // @namespace    YourNamespace
 // @version      0.1
-// @description  Adding an AI assistant to the NBC
-// @author       Frustrated user
+// @description  KI-Assistent und Tutor für die NBC
+// @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
@@ -116,9 +116,22 @@
             cursor: pointer;
             opacity: 0.9;
             border-radius: 4px;
-            position: absolute;
+            position: fixed;
             bottom: 20px;
             left: 20px;
+        }
+
+        .show-button {
+            display: inline-block;
+            background-color: #ADD8E6;
+            color: white;
+            padding: 2px 10px;
+            border: none;
+            cursor: pointer;
+            opacity: 0.9;
+            border-radius: 4px;
+            margin: 2px;
+            font-size: 12px;
         }
 
         .reset-button:hover {
@@ -414,6 +427,7 @@
 
         //Settings div erstellen
         var settings = document.createElement('div');
+        settings.style.overflow = "auto";
         settings.id = 'settings';
         settings.className = 'settings';
         settings.innerHTML = `
@@ -429,36 +443,91 @@
                 ${Object.keys(model_cards).map(title => `<option value="${model_cards[title]}">${title}</option>`).join('')}
             </select>
         `;
+
+        var select_data = document.createElement('div');
+        select_data.id = 'select_data';
+        select_data.className = 'select-data';
+
+        board_layout.columns.forEach(function(item) {
+            var select_column = document.createElement('p');
+            select_column.style = "display: inline-block; margin-bottom: 5px; font-size: 14px;";
+            select_column.innerHTML = item.title;
+            
+            var show_button = document.createElement('button');
+            show_button.innerHTML = "Anzeigen";
+            show_button.className = "show-button";
+
+            var select_card_field = document.createElement('div');
+            select_card_field.style = "display: none";
+
+            item.cards.forEach(function(card) {
+                getCardTextContent(card.cardId)
+                    .then(result => {
+                        var checkbox = document.createElement('input');
+                        checkbox.type = "checkbox";
+                        checkbox.id = card.cardId;
+                        checkbox.name = "data_text";
+                        checkbox.value = result.allText;
+                        checkbox.style = "margin-left: 5px;";
+                        var label = document.createElement('label');
+                        label.htmlFor = checkbox.id;
+                        label.style = "font-size: 14px;";
+                        label.textContent = result.title;
+                        label.appendChild(checkbox);
+                        select_card_field.appendChild(label);
+                        select_card_field.appendChild(document.createElement('br'));
+
+                    })
+                    .catch(error => {
+                        console.error('Fehler bei der Zusammenstellung der Texte:', error);
+                    });
+            });
+
+
+            
+            
+            show_button.addEventListener('click', function() {
+                select_card_field.style.display = (select_card_field.style.display === "none") ? "block" : "none";
+            });
+
+            select_data.appendChild(document.createElement('br'));
+            select_data.appendChild(select_column);
+            select_data.appendChild(show_button);
+            select_data.appendChild(select_card_field);
+        });
+
+        settings.appendChild(select_data);
+
         var selected_model = Object.values(model_cards)[0];
 
 
-        //Create the reset button
+        // Erstelle den Zurücksetzen-Button
         var resetButton = document.createElement('button');
-        resetButton.innerHTML = 'Reset';
+        resetButton.innerHTML = 'Zurücksetzen';
         resetButton.className = 'reset-button';
         resetButton.id = 'resetButton';
 
-        //Create the token count div
+        // Erstelle das Token-Zähler-Div
         var tokenCount = document.createElement('div');
         tokenCount.id = 'tokenCount';
         tokenCount.className = 'tokencount';
 
-        //Create the chat div
+        // Erstelle das Chat-Div
         var chat = document.createElement('div');
         chat.id = 'chat';
         chat.className = 'chat';
         
-        // Create the chat history div
+        // Erstelle das Chat-Verlauf-Div
         var chatHistory = document.createElement('div');
         chatHistory.id = 'chatHistory';
         chatHistory.className = 'chat-history';
 
-        // Create the input div
+        // Erstelle das Eingabe-Div
         var inputArea = document.createElement('div');
         inputArea.id = 'inputArea';
         inputArea.className = 'input-area';
 
-        // Create the input field
+        // Erstelle das Eingabefeld
         var inputField = document.createElement('div');
         inputField.id = 'inputField';
         inputField.className = 'input-field';
@@ -497,34 +566,34 @@
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
-        //Create the event listeners for the settings
+        // Erstelle die Event-Listener für die Einstellungen
         var promptSelect = document.getElementById('promptSelect');
         var modelSelect = document.getElementById('modelSelect');
         promptSelect.addEventListener('change', function() {
             var selected_prompt = promptSelect.options[promptSelect.selectedIndex].value;
-            console.log("Selected Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
+            console.log("Ausgewählter Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
             input.value = selected_prompt;
             
         });
         modelSelect.addEventListener('change', function() {
             selected_model = modelSelect.options[modelSelect.selectedIndex].value;
-            console.log("Selected Model: ", modelSelect.options[modelSelect.selectedIndex].text);
+            console.log("Ausgewähltes Modell: ", modelSelect.options[modelSelect.selectedIndex].text);
         });
 
-        //Create the event listener for the input field
+        // Erstelle den Event-Listener für das Eingabefeld
         input.addEventListener('keydown', function(event) {
             if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                buttonClicked(sendButton.innerHTML, input.value);
-                sendButton.innerHTML = "Senden";
-                input.value = "";
+            buttonClicked(sendButton.innerHTML, input.value);
+            sendButton.innerHTML = "Senden";
+            input.value = "";
             }
             else {
-                countTokens(input.value);
+            countTokens(input.value);
             }
         });
 
 
-        //Create the event listener for the reset button
+        // Erstelle den Event-Listener für den Zurücksetzen-Button
         resetButton.addEventListener('click', function() {
             chat_history = [];
             renderToModal("");
@@ -535,44 +604,44 @@
         });
 
 
-        //Create the event listener for the send button
+        // Erstelle den Event-Listener für den Senden-Button
         sendButton.addEventListener('click', function() {
-            buttonClicked(sendButton.innerHTML, input.value);
+            buttonClicked(sendButton.innerHTML, input.value, selected_model);
             sendButton.innerHTML = "Senden";
             input.value = "";
         });
 
         
-    }
+        }
 
-    //count number of tokens
+        // Zähle die Anzahl der Tokens
     function countTokens(input) {
         var all_text = chat_history.map(obj => Object.values(obj)[0]).join(' ');
         all_text += input;
-        var counted_tokens = all_text.split(' ').length * 1.2;
+        var counted_tokens = all_text.split(' ').length * 2.2; //token number computed by counting the spaces in the text
         var tokenCount = document.getElementById('tokenCount');
         tokenCount.innerHTML = "Tokenanzahl (grob): <b>" + Math.round(counted_tokens) + "</b>";
     }
 
-    //send button is clicked
-    function buttonClicked(action, text) {
-        console.log("Button clicked!");
+    // Der Senden-Button wird geklickt
+    function buttonClicked(action, text, model) {
+        console.log("Button wurde geklickt!");
         if (action === "Beginnen") {
             var text_with_name = text.replace("[name]", me.user.firstName);
             chat_history[0] = {};
             chat_history[0]["system"] = text_with_name;
-            console.log("Chat History: ", chat_history);
-            //send first message to api
+            console.log("Chat-Verlauf: ", chat_history);
+            // Erste Nachricht an die API senden
         }
         else if (action === "Senden") {
             chat_history[chat_history.length] = {};
             chat_history[chat_history.length-1]["user"] = text;
-            console.log("Chat History: ", chat_history);
-            //send next message to api
+            console.log("Chat-Verlauf: ", chat_history);
+            // Nächste Nachricht an die API senden
         }
     }
 
-    //send message to the LLM API
+    // Nachricht an die LLM API senden
 
 
     //Text in das Modal rendern
