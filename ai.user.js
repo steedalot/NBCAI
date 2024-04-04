@@ -57,6 +57,7 @@
             height: 100%;
             background-color: #f0f0f0;
             position: relative;
+            overflow: auto;
         }
 
         .tokencount {
@@ -74,6 +75,12 @@
         .chat-history {
             flex: 0 1 80%;
             padding: 10px;
+            overflow: auto;
+        }
+
+        .modalText {
+            font-size: 18px;
+            padding: 20px;
         }
 
         .input-area {
@@ -131,6 +138,7 @@
             opacity: 0.9;
             border-radius: 4px;
             margin: 2px;
+            margin-left: 6px;
             font-size: 12px;
         }
 
@@ -154,12 +162,12 @@
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
     var me = {};
-    var auth_token = "";
-    var board_id = "";
-    var board_layout = {};
-    var prompt_cards = [];
-    var model_cards = [];
-    var chat_history = [];
+    var authToken = "";
+    var boardId = "";
+    var boardLayout = {};
+    var promptCards = [];
+    var modelCards = [];
+    var chatHistory = [];
 
 
 
@@ -174,7 +182,7 @@
 
             if(cookieName === 'jwt') {
                 console.log('Gefundenes Authorization Token:', cookieValue);
-                auth_token = cookieValue;
+                authToken = cookieValue;
                 return true;
             }
         }
@@ -190,7 +198,7 @@
                 method: "GET",
                 url: "https://niedersachsen.cloud/api/v3/me",
                 headers: {
-                    "Authorization": "Bearer " + auth_token
+                    "Authorization": "Bearer " + authToken
                 },
                 withCredentials: true,
                 onload: function(response) {
@@ -209,22 +217,22 @@
     function getBoardId() {
         console.log("Board ID wird abgerufen.");
         var url = unsafeWindow.location.href;
-        board_id = url.split('/')[4];
-        console.log("ID des Boards: " + board_id);
+        boardId = url.split('/')[4];
+        console.log("ID des Boards: " + boardId);
     }
 
     //Layout eines beliebigen Boards abrufen
     function getBoardLayout(id) {
         return new Promise((resolve, reject) => {
             console.log("Übersicht des Boards wird abgerufen.");
-            if(!auth_token) {
+            if(!authToken) {
                 getAuthToken();
             }
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://niedersachsen.cloud/api/v3/boards/" + id,
                 headers: {
-                    "Authorization": "Bearer " + auth_token
+                    "Authorization": "Bearer " + authToken
                 },
                 withCredentials: true,
                 onload: function(response) {
@@ -243,7 +251,7 @@
         return new Promise((resolve, reject) => {
             getBoardLayout(id)
                 .then(data => {
-                    board_layout = data;
+                    boardLayout = data;
                     resolve();
                 })
                 .catch(error => {
@@ -270,7 +278,7 @@
                     cardIds.forEach(function(cardId) {
                         getCardTextContent(cardId)
                             .then(result => {
-                                prompt_cards[result.title] = result.allText;
+                                promptCards[result.title] = result.allText;
                             })
                             .catch(error => {
                                 console.error('Error:', error);
@@ -302,7 +310,7 @@
                     cardIds.forEach(function(cardId) {
                         getCardTextContent(cardId)
                             .then(result => {
-                                model_cards[result.title] = result.allText;
+                                modelCards[result.title] = result.allText;
                             })
                             .catch(error => {
                                 console.error('Error:', error);
@@ -321,7 +329,7 @@
     //kompletten Textinhalt einer Karte abrufen
     function getCardTextContent(cardId) {
         return new Promise((resolve, reject) => {
-            if(!auth_token) {
+            if(!authToken) {
                 getAuthToken();
             }
             console.log("Hole den Textinhalt der Karte mit der ID: " + cardId);
@@ -329,7 +337,7 @@
                 method: "GET",
                 url: "https://niedersachsen.cloud/api/v3/cards?ids=" + cardId,
                 headers: {
-                    "Authorization": "Bearer " + auth_token
+                    "Authorization": "Bearer " + authToken
                 },
                 withCredentials: true,
                 onload: function(response) {
@@ -344,7 +352,10 @@
                             allText += element.content.text;
                         }
                     }
-                    var clearedText = allText.replace(/<[^>]*>?/gm, '');
+                    var temporary_div = document.createElement('div');
+                    temporary_div.innerHTML = allText;
+                    var clearedText = temporary_div.textContent;
+                    temporary_div.remove();
                     resolve({allText: clearedText, title: title});
                 },
                 onerror: function(error) {
@@ -359,25 +370,24 @@
         console.log("Verbindungen werden getestet.");
         getAuthToken();
         getMe();
-        console.log("Accountname: " + me.displayName);
-        console.log("Name der Schule: " + me.schoolName);
-        console.log("Vorname: " + me.firstName);
+        console.log("Name: " + me.user.firstName + " " + me.user.lastName);
+        console.log("Name der Schule: " + me.school.name);
         getBoardId();
         
     }
 
     function variableTests() {
         console.log("Accountdaten: ", me);
-        console.log("Authorization Token: ", auth_token);
-        console.log("Board ID: ", board_id);
-        console.log("Board Layout: ", board_layout);
+        console.log("Authorization Token: ", authToken);
+        console.log("Board ID: ", boardId);
+        console.log("Board Layout: ", boardLayout);
         console.log("Prompt Cards:");
-        for (var key in prompt_cards) {
-            console.log("Prompt: " + key + " - Text: " + prompt_cards[key]);
+        for (var key in promptCards) {
+            console.log("Prompt: " + key + " - Text: " + promptCards[key]);
         }
         console.log("Model Cards:");
-        for (var key in model_cards) {
-            console.log("Model: " + key + " - Text: " + model_cards[key]);
+        for (var key in modelCards) {
+            console.log("Model: " + key + " - Text: " + modelCards[key]);
         }
         var modal = document.getElementById('modal');
         if (modal) {
@@ -393,7 +403,7 @@
         console.log("System wird vorbereitet.");
         getBoardId();
         if (getAuthToken()) {
-            await Promise.all([getMe(), saveBoardLayout(board_id), getSystemPrompts(aiBoardId), getModels(aiBoardId)]);
+            await Promise.all([getMe(), saveBoardLayout(boardId), getSystemPrompts(aiBoardId), getModels(aiBoardId)]);
             GM_registerMenuCommand("Overlay starten", startModal);
             GM_registerMenuCommand("Test des Systems", variableTests);
         }
@@ -427,38 +437,37 @@
 
         //Settings div erstellen
         var settings = document.createElement('div');
-        settings.style.overflow = "auto";
         settings.id = 'settings';
         settings.className = 'settings';
         settings.innerHTML = `
             <b>Einstellungen</b><br><br>
             Wähle einen Prompt aus:<br>
             <select id="promptSelect" style="all: revert;">
-                ${Object.keys(prompt_cards).map(title => `<option value="${prompt_cards[title]}">${title}</option>`).join('')}
+                ${Object.keys(promptCards).map(title => `<option value="${promptCards[title]}">${title}</option>`).join('')}
             </select>
             <br>
             <br>
             Wähle ein Modell aus:<br>
             <select id="modelSelect" style="all: revert;">
-                ${Object.keys(model_cards).map(title => `<option value="${model_cards[title]}">${title}</option>`).join('')}
+                ${Object.keys(modelCards).map(title => `<option value="${modelCards[title]}">${title}</option>`).join('')}
             </select>
         `;
 
-        var select_data = document.createElement('div');
-        select_data.id = 'select_data';
-        select_data.className = 'select-data';
+        var selectData = document.createElement('div');
+        selectData.id = 'selectData';
+        selectData.className = 'selectData';
 
-        board_layout.columns.forEach(function(item) {
-            var select_column = document.createElement('p');
-            select_column.style = "display: inline-block; margin-bottom: 5px; font-size: 14px;";
-            select_column.innerHTML = item.title;
+        boardLayout.columns.forEach(function(item) {
+            var selectColumn = document.createElement('p');
+            selectColumn.style = "display: inline-block; margin-bottom: 5px; font-size: 14px;";
+            selectColumn.innerHTML = item.title;
             
-            var show_button = document.createElement('button');
-            show_button.innerHTML = "Anzeigen";
-            show_button.className = "show-button";
+            var showButton = document.createElement('button');
+            showButton.innerHTML = "Anzeigen";
+            showButton.className = "show-button";
 
-            var select_card_field = document.createElement('div');
-            select_card_field.style = "display: none";
+            var selectCardField = document.createElement('div');
+            selectCardField.style = "display: none";
 
             item.cards.forEach(function(card) {
                 getCardTextContent(card.cardId)
@@ -466,7 +475,7 @@
                         var checkbox = document.createElement('input');
                         checkbox.type = "checkbox";
                         checkbox.id = card.cardId;
-                        checkbox.name = "data_text";
+                        checkbox.name = "dataText";
                         checkbox.value = result.allText;
                         checkbox.style = "margin-left: 5px;";
                         var label = document.createElement('label');
@@ -474,31 +483,28 @@
                         label.style = "font-size: 14px;";
                         label.textContent = result.title;
                         label.appendChild(checkbox);
-                        select_card_field.appendChild(label);
-                        select_card_field.appendChild(document.createElement('br'));
+                        selectCardField.appendChild(label);
+                        selectCardField.appendChild(document.createElement('br'));
 
                     })
                     .catch(error => {
                         console.error('Fehler bei der Zusammenstellung der Texte:', error);
                     });
             });
-
-
-            
-            
-            show_button.addEventListener('click', function() {
-                select_card_field.style.display = (select_card_field.style.display === "none") ? "block" : "none";
+   
+            showButton.addEventListener('click', function() {
+                selectCardField.style.display = (selectCardField.style.display === "none") ? "block" : "none";
             });
 
-            select_data.appendChild(document.createElement('br'));
-            select_data.appendChild(select_column);
-            select_data.appendChild(show_button);
-            select_data.appendChild(select_card_field);
+            selectData.appendChild(document.createElement('br'));
+            selectData.appendChild(selectColumn);
+            selectData.appendChild(showButton);
+            selectData.appendChild(selectCardField);
         });
 
-        settings.appendChild(select_data);
+        settings.appendChild(selectData);
 
-        var selected_model = Object.values(model_cards)[0];
+        var selectedModel = Object.keys(modelCards)[0];
 
 
         // Erstelle den Zurücksetzen-Button
@@ -534,7 +540,7 @@
 
         var input = document.createElement('textarea');
         input.id = 'input';
-        input.value = Object.values(prompt_cards)[0];
+        input.value = Object.values(promptCards)[0];
         input.className = 'input';
 
 
@@ -570,43 +576,70 @@
         var promptSelect = document.getElementById('promptSelect');
         var modelSelect = document.getElementById('modelSelect');
         promptSelect.addEventListener('change', function() {
-            var selected_prompt = promptSelect.options[promptSelect.selectedIndex].value;
+            var selectedPrompt = promptSelect.options[promptSelect.selectedIndex].value;
             console.log("Ausgewählter Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
-            input.value = selected_prompt;
+            input.value = selectedPrompt;
+            sendButton.innerHTML = "Beginnen";
             
         });
         modelSelect.addEventListener('change', function() {
-            selected_model = modelSelect.options[modelSelect.selectedIndex].value;
+            selectedModel = modelSelect.options[modelSelect.selectedIndex].text;
             console.log("Ausgewähltes Modell: ", modelSelect.options[modelSelect.selectedIndex].text);
         });
 
         // Erstelle den Event-Listener für das Eingabefeld
         input.addEventListener('keydown', function(event) {
             if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            buttonClicked(sendButton.innerHTML, input.value);
-            sendButton.innerHTML = "Senden";
-            input.value = "";
+                var prompt = input.value;
+                if (sendButton.innerHTML === "Beginnen") {
+                    var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]:checked');
+                    var dataText = "";
+                    dataCheckboxes.forEach(function(checkbox) {
+                        dataText += checkbox.value + "\n";
+                    });
+                    prompt = input.value.replace("[data]", dataText);
+                    prompt = prompt.replace("[name]", me.user.firstName);
+                    console.log("System-Prompt: ", prompt);
+                }
+                buttonClicked(sendButton.innerHTML, prompt, selectedModel);
+                sendButton.innerHTML = "Senden";
+                input.value = "";
             }
             else {
-            countTokens(input.value);
+                countTokens(input.value);
             }
         });
 
 
         // Erstelle den Event-Listener für den Zurücksetzen-Button
         resetButton.addEventListener('click', function() {
-            chat_history = [];
+            chatHistory = [];
             renderToModal("");
             promptSelect.selectedIndex = 0;
             modelSelect.selectedIndex = 0;
-            input.value = Object.values(prompt_cards)[0];
+            input.value = Object.values(promptCards)[0];
+            var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]');
+            dataCheckboxes.forEach(function(checkbox) {
+                checkbox.checked = false;
+            });
             sendButton.innerHTML = "Beginnen";
         });
 
 
         // Erstelle den Event-Listener für den Senden-Button
         sendButton.addEventListener('click', function() {
-            buttonClicked(sendButton.innerHTML, input.value, selected_model);
+            var prompt = input.value;
+            if (sendButton.innerHTML === "Beginnen") {
+                var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]:checked');
+                var dataText = "";
+                dataCheckboxes.forEach(function(checkbox) {
+                    dataText += checkbox.value + "\n";
+                });
+                prompt = input.value.replace("[data]", dataText);
+                prompt = prompt.replace("[name]", me.user.firstName);
+                console.log("System-Prompt: ", prompt);
+            }
+            buttonClicked(sendButton.innerHTML, prompt, selectedModel);
             sendButton.innerHTML = "Senden";
             input.value = "";
         });
@@ -616,11 +649,11 @@
 
         // Zähle die Anzahl der Tokens
     function countTokens(input) {
-        var all_text = chat_history.map(obj => Object.values(obj)[0]).join(' ');
-        all_text += input;
-        var counted_tokens = all_text.split(' ').length * 2.2; //token number computed by counting the spaces in the text
+        var allText = chatHistory.map(obj => Object.values(obj)[0]).join(' ');
+        allText += input;
+        var countedTokens = allText.split(' ').length * 2.2; //token number computed by counting the spaces in the text
         var tokenCount = document.getElementById('tokenCount');
-        tokenCount.innerHTML = "Tokenanzahl (grob): <b>" + Math.round(counted_tokens) + "</b>";
+        tokenCount.innerHTML = "Tokenanzahl Eingabe (grob): <b>" + Math.round(countedTokens) + "</b>";
     }
 
     // Der Senden-Button wird geklickt
@@ -628,24 +661,77 @@
         console.log("Button wurde geklickt!");
         if (action === "Beginnen") {
             var text_with_name = text.replace("[name]", me.user.firstName);
-            chat_history[0] = {};
-            chat_history[0]["system"] = text_with_name;
-            console.log("Chat-Verlauf: ", chat_history);
-            // Erste Nachricht an die API senden
+            renderToModal("<b>Ein neuer Chat wird gestartet. Das Modell muss eventuell neu geladen werden.</b>", "standard", false);
+            chatHistory[0] = {};
+            chatHistory[0]["role"] = "system";
+            chatHistory[0]["content"] = text_with_name;
+            console.log("Chat-Verlauf: ", chatHistory);
+            sendMessageToAPI(model);
         }
         else if (action === "Senden") {
-            chat_history[chat_history.length] = {};
-            chat_history[chat_history.length-1]["user"] = text;
-            console.log("Chat-Verlauf: ", chat_history);
-            // Nächste Nachricht an die API senden
+            chatHistory[chatHistory.length] = {};
+            chatHistory[chatHistory.length-1]["role"] = "user";
+            chatHistory[chatHistory.length-1]["content"] = text;
+            renderToModal("<br><br><b>" + me.user.firstName + " 🧑‍🏫:</b><br><span style='color: #4455EE'>" + text + "</span>", "standard", true);
+            sendMessageToAPI(model);
         }
     }
 
     // Nachricht an die LLM API senden
+    function sendMessageToAPI(model) {
+        console.log("Request wird an die API gesendet: " + model);
+        console.log("Chat-Verlauf: ", chatHistory);
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: modelCards[model].trim(),
+            responseType: "stream",
+            data: JSON.stringify({
+                "model": model,
+                "messages": chatHistory,
+                "stream": true
+            }),
+            headers: {
+                "Content-Type": "application/json"
+            },
+            onloadstart: async function(response) {
+                renderToModal("<br><br><b>" + model + " 🤖:</b><br>", "standard", true);
+                const reader = response.response.getReader();
+                const decoder = new TextDecoder("utf-8");
+                var responseJSON = "";
+                chatHistory[chatHistory.length] = {};
+                chatHistory[chatHistory.length-1]["role"] = "assistant";
+                chatHistory[chatHistory.length-1]["content"] = "";
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (value) {
+                        responseJSON = decoder.decode(value);
+                        var text = JSON.parse(responseJSON);
+                        renderToModal(text["message"]["content"], "standard", true);
+                        chatHistory[chatHistory.length-1]["content"] += text["message"]["content"];
+                        if (text["done"] == true) {
+                            console.log("Anzahl der Tokens: " + text["eval_count"]);
+                            var tokenCount = document.getElementById('tokenCount');
+                            tokenCount.innerHTML = "Tokenanzahl: <b>" + text["eval_count"] + "</b>";
+                        }
+                    }
+                    if (done) {
+                        console.log("Stream beendet.");
+                        break;
+                    }
+                }
+
+            },
+            onerror: function(error) {
+                console.error("Fehler bei der Anfrage: ", error);
+            }
+        });
+    }
+
+
 
 
     //Text in das Modal rendern
-    function renderToModal(text) {
+    function renderToModal(text, type = "standard", stream = false) {
         var modal = document.getElementById('chatHistory');
         if (!modal) {
             console.log("Modal nicht gefunden! Text konnte nicht gerendert werden.");
@@ -655,9 +741,17 @@
             if (!message) {
                 var message = document.createElement('div');
                 message.id = 'modalText';
+                message.className = 'modalText';
                 modal.appendChild(message);
             }
-            message.innerHTML = text;
+            if (stream) {
+                message.innerHTML += text;
+                let chatHistory = document.querySelector('.chat-history');
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+            else {
+                message.innerHTML = text;
+            }
             
         }
     }
@@ -680,36 +774,5 @@
         content.innerHTML = html;
 
     }
-
-    function createAndInsertButton() {
-        // Locate the existing button
-        let existingButton = document.querySelector('[data-testid="board-menu-button"]');
-
-        if (existingButton) {
-            // Create a new button
-            let newButton = document.createElement('button');
-            newButton.innerHTML = '🤖'; // Robot emoji
-            newButton.classList.add("v-btn", "v-btn--icon", "v-btn--round", "theme--light", "v-size--default");
-
-            // Add event listener for the fetchData function
-            newButton.addEventListener('click', startTests);
-
-            // Insert the new button before the existing button
-            existingButton.parentNode.insertBefore(newButton, existingButton);
-
-            console.log("Button created!");
-        }
-    }
-
-
-    
-
-
-
-
-
-
-
-
 
 })();
