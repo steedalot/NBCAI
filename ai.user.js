@@ -72,7 +72,7 @@
             flex: 0 0 70%;
         }
 
-        .chat-history {
+        .chatMessages {
             flex: 0 1 80%;
             padding: 10px;
             overflow: auto;
@@ -99,10 +99,22 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            flex-direction: column;
         }
 
         .send-button {
             background-color: #4CAF50;
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            cursor: pointer;
+            opacity: 0.9;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .save-button {
+            background-color: #ADD8E6;
             color: white;
             padding: 14px 20px;
             border: none;
@@ -524,9 +536,9 @@
         chat.className = 'chat';
         
         // Erstelle das Chat-Verlauf-Div
-        var chatHistory = document.createElement('div');
-        chatHistory.id = 'chatHistory';
-        chatHistory.className = 'chat-history';
+        var chatMessages = document.createElement('div');
+        chatMessages.id = 'chatMessages';
+        chatMessages.className = 'chatMessages';
 
         // Erstelle das Eingabe-Div
         var inputArea = document.createElement('div');
@@ -556,14 +568,21 @@
         sendButton.className = 'send-button';
         sendButton.id = 'sendButton';
 
+        var saveButton = document.createElement('button');
+        saveButton.innerHTML = 'Speichern';
+        saveButton.className = 'save-button';
+        saveButton.id = 'saveButton';
+
         sendButtonField.appendChild(sendButton);
+        sendButtonField.appendChild(saveButton);
+
         settings.appendChild(resetButton);
         settings.appendChild(tokenCount);
 
         inputArea.appendChild(inputField);
         inputArea.appendChild(sendButtonField);
 
-        chat.appendChild(chatHistory);
+        chat.appendChild(chatMessages);
         chat.appendChild(inputArea);
 
         modal.appendChild(settings);
@@ -644,8 +663,14 @@
             input.value = "";
         });
 
-        
-        }
+        // Erstelle den Event-Listener für den Speichern-Button
+        saveButton.addEventListener('click', function() {
+            var date = new Date();
+            var filename = "NBC KI Chat (" + selectedModel + " - " + date.toISOString().slice(0,10) + ").txt";
+            saveChatHistoryToFile(filename, selectedModel);
+        });
+
+    }
 
         // Zähle die Anzahl der Tokens
     function countTokens(input) {
@@ -732,7 +757,8 @@
 
     //Text in das Modal rendern
     function renderToModal(text, type = "standard", stream = false) {
-        var modal = document.getElementById('chatHistory');
+        text = text.replace(/\n/g, "<br>");
+        var modal = document.getElementById('chatMessages');
         if (!modal) {
             console.log("Modal nicht gefunden! Text konnte nicht gerendert werden.");
         }
@@ -746,8 +772,8 @@
             }
             if (stream) {
                 message.innerHTML += text;
-                let chatHistory = document.querySelector('.chat-history');
-                chatHistory.scrollTop = chatHistory.scrollHeight;
+                let scrollableChatMessages = document.querySelector('.chatMessages');
+                scrollableChatMessages.scrollTop = scrollableChatMessages.scrollHeight;
             }
             else {
                 message.innerHTML = text;
@@ -762,6 +788,44 @@
         modal.remove();
         var overlay = document.getElementById('modalOverlay');
         overlay.remove();
+    }
+
+    //Chatverlauf speichern
+    function saveChatHistoryToFile(filename, model) {
+        let chatHistoryText = 'Gespeicherter Chatverlauf\n------------------------\n\n';
+        chatHistoryText += `Name: ${me.user.firstName} ${me.user.lastName}\n`;
+        chatHistoryText += `Schule: ${me.school.name}\n`;
+        chatHistoryText += 'Modell: ' + model + '\n';
+        var date = new Date();
+        chatHistoryText += 'Datum: ' + date.toLocaleString("de-DE") + '\n\n\n';  
+        if (chatHistory.length === 0) {
+            console.log('Chatverlauf ist leer.');
+            return;
+        }
+
+        chatHistory.forEach(chat => {
+            chatHistoryText += `Rolle: ${chat.role}\n`;
+            chatHistoryText += `Inhalt: ${chat.content}\n\n`;
+        });
+    
+        // Erstelle ein Blob aus dem Chatverlaufstext
+        const blob = new Blob([chatHistoryText], { type: 'text/plain' });
+    
+        // Erstelle ein Link-Element
+        const link = document.createElement('a');
+    
+        // Setze das Download-Attribut mit dem Dateinamen
+        link.download = filename;
+    
+        // Erstelle eine URL für das Blob und setze sie als href des Links
+        link.href = URL.createObjectURL(blob);
+    
+        // Füge den Link dem Dokument hinzu und klicke ihn an, um den Download zu starten
+        document.body.appendChild(link);
+        link.click();
+    
+        // Bereinige, indem du den Link entfernst
+        document.body.removeChild(link);
     }
 
     function modalChooseContent() {
