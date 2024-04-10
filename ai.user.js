@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.1
+// @version      0.4
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -726,19 +726,44 @@
                 chatHistory[chatHistory.length] = {};
                 chatHistory[chatHistory.length-1]["role"] = "assistant";
                 chatHistory[chatHistory.length-1]["content"] = "";
+                
+                
                 while (true) {
                     const { value, done } = await reader.read();
+                    
                     if (value) {
-                        responseJSON = decoder.decode(value);
-                        var text = JSON.parse(responseJSON);
-                        renderToModal(text["message"]["content"], "standard", true);
-                        chatHistory[chatHistory.length-1]["content"] += text["message"]["content"];
-                        if (text["done"] == true) {
-                            console.log("Anzahl der Tokens: " + text["eval_count"]);
-                            var tokenCount = document.getElementById('tokenCount');
-                            tokenCount.innerHTML = "Tokenanzahl: <b>" + text["eval_count"] + "</b>";
-                        }
+                    
+                        let responseRAW = decoder.decode(value, { stream: true });
+                        responseRAW = responseRAW.replace(/\n/g, '');
+                        console.log("Antwort: " + responseRAW);
+                        let responseArray = responseRAW.split("}{");
+
+                        responseArray.forEach(function(responseJSON) {
+                            responseJSON = responseJSON.trim();
+                            if (!responseJSON.startsWith("{")) {
+                                responseJSON = "{" + responseJSON;
+                            }
+                            else if (!responseJSON.endsWith("}")) {
+                                responseJSON += "}";
+                            }
+
+                            try {
+                                var text = JSON.parse(responseJSON);
+                                renderToModal(text["message"]["content"], "standard", true);
+                                chatHistory[chatHistory.length-1]["content"] += text["message"]["content"];
+                                if (text["done"] == true) {
+                                    console.log("Anzahl der Tokens: " + text["eval_count"]);
+                                    var tokenCount = document.getElementById('tokenCount');
+                                    tokenCount.innerHTML = "Tokenanzahl: <b>" + text["eval_count"] + "</b>";
+                                }
+                            }
+                            catch (error) {
+                                console.error("Fehler beim Parsen der Antwort: ", error);
+                            }
+                        });
+
                     }
+
                     if (done) {
                         console.log("Stream beendet.");
                         break;
