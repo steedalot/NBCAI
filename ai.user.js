@@ -743,7 +743,7 @@
                             if (!responseJSON.startsWith("{")) {
                                 responseJSON = "{" + responseJSON;
                             }
-                            else if (!responseJSON.endsWith("}")) {
+                            if (!responseJSON.endsWith("}")) {
                                 responseJSON += "}";
                             }
 
