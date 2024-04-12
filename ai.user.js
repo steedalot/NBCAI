@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.4
+// @version      0.5
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -180,6 +180,11 @@
     var promptCards = [];
     var modelCards = [];
     var chatHistory = [];
+    var storageAPI = {"urlCardId": "661905e7db4e2ab8e165c039",
+        "keyCardId": "661905f15a3f6c2c9ecddc39",
+        "url": "",
+        "key": "",
+        "systemPrompt": ""};
 
 
 
@@ -338,6 +343,28 @@
         });
     }
 
+    function getStorageData() {
+        return new Promise((resolve, reject) => {
+            getCardTextContent(storageAPI["urlCardId"])
+                .then(url => {
+                    getCardTextContent(storageAPI["keyCardId"])
+                        .then(key => {
+                            storageAPI["url"] = url.allText;
+                            storageAPI["key"] = key.allText;
+                            resolve();
+                        })
+                        .catch(error => {
+                            console.error('Fehler beim Abrufen des Schlüssels:', error);
+                            reject(error);
+                        });
+                })
+                .catch(error => {
+                    console.error('Fehler beim Abrufen der URL:', error);
+                    reject(error);
+                });
+        });
+    }
+
     //kompletten Textinhalt einer Karte abrufen
     function getCardTextContent(cardId) {
         return new Promise((resolve, reject) => {
@@ -415,7 +442,7 @@
         console.log("System wird vorbereitet.");
         getBoardId();
         if (getAuthToken()) {
-            await Promise.all([getMe(), saveBoardLayout(boardId), getSystemPrompts(aiBoardId), getModels(aiBoardId)]);
+            await Promise.all([getMe(), saveBoardLayout(boardId), getSystemPrompts(aiBoardId), getModels(aiBoardId), getStorageData()]);
             GM_registerMenuCommand("Overlay starten", startModal);
             GM_registerMenuCommand("Test des Systems", variableTests);
         }
@@ -611,6 +638,7 @@
             if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 var prompt = input.value;
                 if (sendButton.innerHTML === "Beginnen") {
+                    storageAPI["systemPrompt"] = prompt;
                     var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]:checked');
                     var dataText = "";
                     dataCheckboxes.forEach(function(checkbox) {
@@ -649,6 +677,7 @@
         sendButton.addEventListener('click', function() {
             var prompt = input.value;
             if (sendButton.innerHTML === "Beginnen") {
+                storageAPI["systemPrompt"] = prompt;
                 var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]:checked');
                 var dataText = "";
                 dataCheckboxes.forEach(function(checkbox) {
@@ -656,7 +685,6 @@
                 });
                 prompt = input.value.replace("[data]", dataText);
                 prompt = prompt.replace("[name]", me.user.firstName);
-                console.log("System-Prompt: ", prompt);
             }
             buttonClicked(sendButton.innerHTML, prompt, selectedModel);
             sendButton.innerHTML = "Senden";
@@ -667,7 +695,7 @@
         saveButton.addEventListener('click', function() {
             var date = new Date();
             var filename = "NBC KI Chat (" + selectedModel + " - " + date.toISOString().slice(0,10) + ").txt";
-            saveChatHistoryToFile(filename, selectedModel);
+            saveChatHistoryToFile(selectedModel);
         });
 
     }
@@ -735,9 +763,7 @@
                     
                         let responseRAW = decoder.decode(value, { stream: true });
                         responseRAW = responseRAW.replace(/\n/g, '');
-                        console.log("Antwort: " + responseRAW);
                         let responseArray = responseRAW.split("}{");
-
                         responseArray.forEach(function(responseJSON) {
                             responseJSON = responseJSON.trim();
                             if (!responseJSON.startsWith("{")) {
@@ -815,14 +841,13 @@
         overlay.remove();
     }
 
+
     //Chatverlauf speichern
-    function saveChatHistoryToFile(filename, model) {
-        let chatHistoryText = 'Gespeicherter Chatverlauf\n------------------------\n\n';
-        chatHistoryText += `Name: ${me.user.firstName} ${me.user.lastName}\n`;
-        chatHistoryText += `Schule: ${me.school.name}\n`;
-        chatHistoryText += 'Modell: ' + model + '\n';
+    function saveChatHistoryToFile(model) {
+        var chatHistoryText = "";
         var date = new Date();
-        chatHistoryText += 'Datum: ' + date.toLocaleString("de-DE") + '\n\n\n';  
+        var options = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        var formattedDate = date.toLocaleString('de-DE', options).split('.').reverse().join('-');
         if (chatHistory.length === 0) {
             console.log('Chatverlauf ist leer.');
             return;
@@ -832,25 +857,35 @@
             chatHistoryText += `Rolle: ${chat.role}\n`;
             chatHistoryText += `Inhalt: ${chat.content}\n\n`;
         });
+
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: storageAPI["url"],
+            withCredentials: true,
+            data: JSON.stringify({
+                "Datum": formattedDate,
+                "Benutzer:in": me.user.firstName,
+                "Modell": model,
+                "Bewertung": "",
+                "Systemprompt": storageAPI["systemPrompt"],
+                "Chatverlauf": chatHistoryText,
+                "Kommentare": "",
+                "Board": "https://niedersachsen.cloud/rooms/" + boardId + "/board"
+
+            }),
+            headers: {
+                "Content-Type": "application/json",
+                "xc-token": storageAPI["key"]
+            },
+            onload: function(response) {
+                console.log("Chatverlauf wurde gespeichert.");
+            },
+            onerror: function(error) {
+                console.error("Fehler beim Speichern des Chatverlaufs: ", error);
+            }
+        });
     
-        // Erstelle ein Blob aus dem Chatverlaufstext
-        const blob = new Blob([chatHistoryText], { type: 'text/plain' });
-    
-        // Erstelle ein Link-Element
-        const link = document.createElement('a');
-    
-        // Setze das Download-Attribut mit dem Dateinamen
-        link.download = filename;
-    
-        // Erstelle eine URL für das Blob und setze sie als href des Links
-        link.href = URL.createObjectURL(blob);
-    
-        // Füge den Link dem Dokument hinzu und klicke ihn an, um den Download zu starten
-        document.body.appendChild(link);
-        link.click();
-    
-        // Bereinige, indem du den Link entfernst
-        document.body.removeChild(link);
+
     }
 
     function modalChooseContent() {
