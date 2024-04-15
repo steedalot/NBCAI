@@ -741,7 +741,11 @@
             data: JSON.stringify({
                 "model": model,
                 "messages": chatHistory,
-                "stream": true
+                "stream": true,
+                "options": {
+                    "temperature": 0,
+                    "seed": 123
+                }
             }),
             headers: {
                 "Content-Type": "application/json"
