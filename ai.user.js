@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.5
+// @version      0.7
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -9,24 +9,84 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @connect      136.243.1.228
+// @downloadURL  https://github.com/steedalot/NBCAI/raw/main/ai.user.js
 // ==/UserScript==
 
 
 (function() {
     'use strict';
 
-    GM_registerMenuCommand("preflight tests", function() { checkForBoard(startTests); });
-    GM_registerMenuCommand("System vorbereiten", function() { checkForBoard(prepareSystem); });
+    const debug = true;
+    var log = {};
+
+    GM_registerMenuCommand("KI-Tutor starten", function() { checkForBoard(prepareSystem); });
+    GM_registerMenuCommand("Informationen", function() { versionInfo(); });
+    if (debug) {
+        GM_registerMenuCommand("Tests starten", function() { startTests(); });
+        GM_registerMenuCommand("Variablen anzeigen", function() { variableTests(); });
+    }
+
+    function writeToLog(text, error = false) {
+        log[Date.now()] = text;
+        if (debug) {
+            if (error) {
+                console.error(text);
+            }
+            else {
+                console.log(text);
+            }    
+        }
+    }
+
+    function saveLogToFile() {
+        var logText = "Fehlerlog des KI-Tutors\nVersion: " + version + "\n\n";
+        for (var key in log) {
+            let date = new Date(parseInt(key));
+            console.log(date);
+            let year = date.getFullYear();
+            let month = ("0" + (date.getMonth() + 1)).slice(-2); // Monate beginnen bei 0 in JavaScript
+            let day = ("0" + date.getDate()).slice(-2);
+            let hours = ("0" + date.getHours()).slice(-2);
+            let minutes = ("0" + date.getMinutes()).slice(-2);
+            let seconds = ("0" + date.getSeconds()).slice(-2);
+            let ms = ("00" + date.getMilliseconds()).slice(-3);
+            logText += `${day}.${month}.${year} (${hours}:${minutes}:${seconds}:${ms}): ${log[key]}\n`;    
+        }
+        var blob = new Blob([logText], {type: "text/plain;charset=utf-8"});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = "KI-Tutor-Log.txt";
+        a.click();
+        a.remove();
+    }
 
 
     function checkForBoard(calledFunction) {
         var url = unsafeWindow.location.href;
         if(url.includes("board")) {
-            console.log("Board gefunden!");
+            writeToLog("Aktuelles Board gefunden!");
             calledFunction();
         }
     }
 
+    function versionInfo() {
+        var textToDisplay = "KI-Tutor Entwicklungsversion\nDaniel Gaida, N-21\n\n";
+        textToDisplay += "Version: " + version + "\n\n";
+        var url = unsafeWindow.location.href;
+        if (url.includes("board") && boardId) {
+            textToDisplay += "Board ID: " + boardId + "\n";
+        }
+        if (Object.keys(me).length > 0) {
+            textToDisplay += "Benutzer: " + me.user.firstName + " " + me.user.lastName + "\n";
+            textToDisplay += "Schule: " + me.school.name + "\n";
+        }
+        textToDisplay += "\n";
+        alert(textToDisplay);
+    }
+
+
+    var standardColors = {"red": "#D81E5B", "orange": "#CD8B76", "green": "#B0E298", "blue": "#8EB8E5", "yellow": "#EEF1BD" }
     var modalCSS = `.modal-overlay {
             position: fixed;
             z-index: 100;
@@ -36,6 +96,7 @@
             height: 100%;
             overflow: auto;
             background-color: rgba(0,0,0,0.4);
+            display: none;
         }
 
         .modal {
@@ -103,7 +164,7 @@
         }
 
         .send-button {
-            background-color: #4CAF50;
+            background-color: ${standardColors["green"]};
             color: white;
             padding: 14px 20px;
             border: none;
@@ -114,7 +175,7 @@
         }
 
         .save-button {
-            background-color: #ADD8E6;
+            background-color: ${standardColors["blue"]};
             color: white;
             padding: 14px 20px;
             border: none;
@@ -128,7 +189,7 @@
         }
 
         .reset-button {
-            background-color: #FF5733;
+            background-color: ${standardColors["red"]};
             color: white;
             padding: 14px 20px;
             border: none;
@@ -140,9 +201,28 @@
             left: 20px;
         }
 
+        .ai-button {
+            background-color: ${standardColors["yellow"]};
+            color: white;
+            padding: 20px 20px;
+            border: 3;
+            cursor: pointer;
+            opacity: 0.9;
+            border-radius: 50%;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 102;
+            font-size: 20px;
+        }
+
+        .ai-button:hover {
+            opacity: 1;
+        }
+
         .show-button {
             display: inline-block;
-            background-color: #ADD8E6;
+            background-color: ${standardColors["blue"]};
             color: white;
             padding: 2px 10px;
             border: none;
@@ -173,6 +253,8 @@
 
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
+    const version = "0.7";
+    var menuCommandId = "";
     var me = {};
     var authToken = "";
     var boardId = "";
@@ -190,7 +272,7 @@
 
     //Auth Token aus Cookie abrufen
     function getAuthToken() {
-        console.log("Authorization Token wird abgerufen.");
+        writeToLog("Authorization Token wird abgerufen.");
         var cookies = document.cookie.split('; ');
         for(var i = 0; i < cookies.length; i++) {
             var cookie = cookies[i];
@@ -198,19 +280,19 @@
             var cookieValue = cookie.split('=')[1];
 
             if(cookieName === 'jwt') {
-                console.log('Gefundenes Authorization Token:', cookieValue);
+                writeToLog('Gefundenes Authorization Token: ' + cookieValue);
                 authToken = cookieValue;
                 return true;
             }
         }
-        console.log('Kein Authorization Token gefunden.');
+        writeToLog('Kein Authorization Token gefunden.');
         return false;
     }
 
     //ID der Schule abrufen
     function getMe() {
         return new Promise((resolve, reject) => {
-            console.log("Accountdaten werden abgerufen.");
+            writeToLog("Accountdaten werden abgerufen.");
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://niedersachsen.cloud/api/v3/me",
@@ -221,7 +303,7 @@
                 onload: function(response) {
                     var data = JSON.parse(response.responseText);
                     me = data;
-                    resolve(me);
+                    resolve();
                 },
                 onerror: function(error) {
                     reject(error);
@@ -232,16 +314,16 @@
 
     //ID des Boards abrufen
     function getBoardId() {
-        console.log("Board ID wird abgerufen.");
+        writeToLog("Board ID des aktuellen Boards wird abgerufen.");
         var url = unsafeWindow.location.href;
         boardId = url.split('/')[4];
-        console.log("ID des Boards: " + boardId);
+        writeToLog("Board ID: " + boardId);
     }
 
     //Layout eines beliebigen Boards abrufen
     function getBoardLayout(id) {
         return new Promise((resolve, reject) => {
-            console.log("Übersicht des Boards wird abgerufen.");
+            writeToLog("Board Layout des Boards " + id + " wird abgerufen.");
             if(!authToken) {
                 getAuthToken();
             }
@@ -272,7 +354,7 @@
                     resolve();
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    writeToLog('Fehler beim Speichern des Board Layouts: ' + error, true);
                     reject(error);
                 });
         });
@@ -291,21 +373,33 @@
                     const cardIds = promptsColumn.cards.map(function(card) {
                         return card.cardId;
                     });
+
+                    const promises = [];
     
                     cardIds.forEach(function(cardId) {
-                        getCardTextContent(cardId)
-                            .then(result => {
-                                promptCards[result.title] = result.allText;
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                                reject(error);
-                            });
+                        promises.push(
+                            getCardTextContent(cardId)
+                                .then(result => {
+                                    promptCards[result.title] = result.allText;
+                                })
+                                .catch(error => {
+                                    writeToLog('Fehler beim Download eines Prompts: ' + error, true);
+                                    reject(error);
+                                })
+                        );
                     });
-                    resolve();
+
+                    Promise.all(promises)
+                        .then(() => {
+                            resolve();
+                        })
+                        .catch(error => {
+                            writeToLog('Fehler beim Download der Prompts: ' + error, true);
+                            reject(error);
+                        });
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    writeToLog('Fehler beim Analysieren des KI-Boards: ' + error, true);
                     reject(error);
                 });
         });
@@ -323,21 +417,36 @@
                     const cardIds = modelsColumn.cards.map(function(card) {
                         return card.cardId;
                     });
+
+                    writeToLog("Anzahl der gefundenen Modelle: " + cardIds.length);
+
+                    const promises = [];
     
                     cardIds.forEach(function(cardId) {
-                        getCardTextContent(cardId)
-                            .then(result => {
-                                modelCards[result.title] = result.allText;
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                                reject(error);
-                            });
+                        promises.push(
+                            getCardTextContent(cardId)
+                                .then(result => {
+                                    modelCards[result.title] = result.allText;
+                                })
+                                .catch(error => {
+                                    writeToLog('Fehler beim Download eines Modells: ' + error, true);
+                                    reject(error);
+                                })
+                        );
                     });
-                    resolve();
+
+                    Promise.all(promises)
+                        .then(() => {
+                            resolve();
+                        })
+                        .catch(error => {
+                            writeToLog('Fehler beim Download der Modelle: ' + error, true);
+                            reject(error);
+                        });
+
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    writeToLog('Fehler beim Analysieren des KI-Boards: ' + error, true);
                     reject(error);
                 });
         });
@@ -354,12 +463,12 @@
                             resolve();
                         })
                         .catch(error => {
-                            console.error('Fehler beim Abrufen des Schlüssels:', error);
+                            writeToLog('Fehler beim Abrufen des Schlüssels: ' + error, true);
                             reject(error);
                         });
                 })
                 .catch(error => {
-                    console.error('Fehler beim Abrufen der URL:', error);
+                    writeToLog('Fehler beim Abrufen der URL: ' + error, true);
                     reject(error);
                 });
         });
@@ -371,7 +480,7 @@
             if(!authToken) {
                 getAuthToken();
             }
-            console.log("Hole den Textinhalt der Karte mit der ID: " + cardId);
+            writeToLog("Hole den Textinhalt der Karte mit der ID: " + cardId);
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://niedersachsen.cloud/api/v3/cards?ids=" + cardId,
@@ -406,7 +515,7 @@
 
     //Testfunktionen
     function startTests() {
-        console.log("Verbindungen werden getestet.");
+        writeToLog("Verbindungen werden getestet.");
         getAuthToken();
         getMe();
         console.log("Name: " + me.user.firstName + " " + me.user.lastName);
@@ -416,6 +525,7 @@
     }
 
     function variableTests() {
+        writeToLog("Variablen werden getestet.");
         console.log("Accountdaten: ", me);
         console.log("Authorization Token: ", authToken);
         console.log("Board ID: ", boardId);
@@ -437,14 +547,64 @@
         }
     }
 
+    //Pipeline für Inhalte aus dem KI-Board
+    function dataPipeline() {
+    }
+
     //System vorbereiten (wichtige Daten abrufen und speichern)
     async function prepareSystem() {
-        console.log("System wird vorbereitet.");
+        GM_registerMenuCommand("Log herunterladen", function() { saveLogToFile(); });
+        createStyles();
+        createAIButton();
+        writeToLog("System wird vorbereitet.");
         getBoardId();
         if (getAuthToken()) {
-            await Promise.all([getMe(), saveBoardLayout(boardId), getSystemPrompts(aiBoardId), getModels(aiBoardId), getStorageData()]);
-            GM_registerMenuCommand("Overlay starten", startModal);
-            GM_registerMenuCommand("Test des Systems", variableTests);
+            Promise.all([getMe(), saveBoardLayout(boardId), getSystemPrompts(aiBoardId), getModels(aiBoardId), getStorageData()])
+                .then(() => {
+                    writeToLog("System vorbereitet.");
+                    startModal();
+                    aiButtonChangeColor(standardColors["green"]);
+                    //menuCommandId = GM_registerMenuCommand("KI-Tutor schließen", closeSystem());
+                    var aiButton = document.getElementById('aiButton');
+                    aiButton.addEventListener('click', function() {
+                        aiButtonIsClicked();
+                    });
+                })
+                .catch(error => {
+                    writeToLog('Fehler bei der Vorbereitung des Systems: ' + error, true);
+                    aiButtonChangeColor(standardColors["red"]);
+                });
+            
+
+        }
+    }
+
+    //KI-Knopf erstellen
+    function createAIButton() {
+        writeToLog("Erstelle KI-Button.");
+        var aiButton = document.createElement('button');
+        aiButton.innerHTML = '🤖';
+        aiButton.className = 'ai-button';
+        aiButton.id = 'aiButton';
+        document.body.appendChild(aiButton);
+    }
+
+    function aiButtonChangeColor(color) {
+        var aiButton = document.getElementById('aiButton');
+        aiButton.style.backgroundColor = color;
+        writeToLog("Farbe des KI-Buttons geändert: " + aiButton.style.backgroundColor);
+    }
+
+    function aiButtonIsClicked() {
+        writeToLog("KI-Button wurde geklickt.");
+        var overlay = document.getElementById('modalOverlay');
+        if (window.getComputedStyle(overlay).display === 'none') {
+            overlay.style.display = 'block';
+            aiButtonChangeColor(standardColors["green"]);
+        }
+        else {
+            overlay.style.display = 'none';
+            aiButtonChangeColor(standardColors["blue"]);
         }
     }
 
@@ -458,14 +618,13 @@
    
     //Modal erstellen und einfügen
     function startModal() {
-        createStyles();
-        console.log("Modal wird eingerichtet.");
+        writeToLog("Modal wird eingerichtet.");
         var overlay = document.createElement('div');
         overlay.id = 'modalOverlay';
         overlay.className = 'modal-overlay';
         overlay.addEventListener('click', function(event) {
             if(event.target === overlay) {
-                closeModal();
+                hideModal();
             }
         });
 
@@ -527,7 +686,7 @@
 
                     })
                     .catch(error => {
-                        console.error('Fehler bei der Zusammenstellung der Texte:', error);
+                        writeToLog('Fehler bei der Zusammenstellung der Textinhalte: ' + error, true);
                     });
             });
    
@@ -621,17 +780,27 @@
         // Erstelle die Event-Listener für die Einstellungen
         var promptSelect = document.getElementById('promptSelect');
         var modelSelect = document.getElementById('modelSelect');
+        
         promptSelect.addEventListener('change', function() {
             var selectedPrompt = promptSelect.options[promptSelect.selectedIndex].value;
-            console.log("Ausgewählter Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
-            input.value = selectedPrompt;
-            sendButton.innerHTML = "Beginnen";
+            if (debug) {
+                console.log("Ausgewählter Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
+            }
+            if (sendButton.innerHTML === "Beginnen") {
+                input.value = selectedPrompt;
+            }
             
         });
+
         modelSelect.addEventListener('change', function() {
-            selectedModel = modelSelect.options[modelSelect.selectedIndex].text;
-            console.log("Ausgewähltes Modell: ", modelSelect.options[modelSelect.selectedIndex].text);
+            if (sendButton.innerHTML === "Beginnen") {
+                selectedModel = modelSelect.options[modelSelect.selectedIndex].text;
+                if (debug) {
+                    console.log("Ausgewähltes Modell: ", modelSelect.options[modelSelect.selectedIndex].text);
+                }
+            }
         });
+
 
         // Erstelle den Event-Listener für das Eingabefeld
         input.addEventListener('keydown', function(event) {
@@ -639,6 +808,7 @@
                 var prompt = input.value;
                 if (sendButton.innerHTML === "Beginnen") {
                     storageAPI["systemPrompt"] = prompt;
+                    writeToLog("System-Prompt für Zugriff: " + prompt);
                     var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]:checked');
                     var dataText = "";
                     dataCheckboxes.forEach(function(checkbox) {
@@ -646,7 +816,6 @@
                     });
                     prompt = input.value.replace("[data]", dataText);
                     prompt = prompt.replace("[name]", me.user.firstName);
-                    console.log("System-Prompt: ", prompt);
                 }
                 buttonClicked(sendButton.innerHTML, prompt, selectedModel);
                 sendButton.innerHTML = "Senden";
@@ -678,6 +847,7 @@
             var prompt = input.value;
             if (sendButton.innerHTML === "Beginnen") {
                 storageAPI["systemPrompt"] = prompt;
+                writeToLog("System-Prompt für Zugriff: " + prompt);
                 var dataCheckboxes = selectData.querySelectorAll('input[name="dataText"]:checked');
                 var dataText = "";
                 dataCheckboxes.forEach(function(checkbox) {
@@ -695,7 +865,7 @@
         saveButton.addEventListener('click', function() {
             var date = new Date();
             var filename = "NBC KI Chat (" + selectedModel + " - " + date.toISOString().slice(0,10) + ").txt";
-            saveChatHistoryToFile(selectedModel);
+            saveChatHistoryToDataBase(selectedModel);
         });
 
     }
@@ -711,14 +881,13 @@
 
     // Der Senden-Button wird geklickt
     function buttonClicked(action, text, model) {
-        console.log("Button wurde geklickt!");
+        writeToLog("Nachricht senden wurde initialisiert.");
         if (action === "Beginnen") {
             var text_with_name = text.replace("[name]", me.user.firstName);
             renderToModal("<b>Ein neuer Chat wird gestartet. Das Modell muss eventuell neu geladen werden.</b>", "standard", false);
             chatHistory[0] = {};
             chatHistory[0]["role"] = "system";
             chatHistory[0]["content"] = text_with_name;
-            console.log("Chat-Verlauf: ", chatHistory);
             sendMessageToAPI(model);
         }
         else if (action === "Senden") {
@@ -732,8 +901,10 @@
 
     // Nachricht an die LLM API senden
     function sendMessageToAPI(model) {
-        console.log("Request wird an die API gesendet: " + model);
-        console.log("Chat-Verlauf: ", chatHistory);
+        writeToLog("Nachricht wird an die API gesendet. (Modell: " + model + ")");
+        if (debug) {
+            console.log("Chat-Verlauf: ", chatHistory);
+        }
         GM_xmlhttpRequest({
             method: "POST",
             url: modelCards[model].trim(),
@@ -751,6 +922,7 @@
                 "Content-Type": "application/json"
             },
             onloadstart: async function(response) {
+                writeToLog("Antwortstream beginnt.");
                 renderToModal("<br><br><b>" + model + " 🤖:</b><br>", "standard", true);
                 const reader = response.response.getReader();
                 const decoder = new TextDecoder("utf-8");
@@ -782,27 +954,26 @@
                                 renderToModal(text["message"]["content"], "standard", true);
                                 chatHistory[chatHistory.length-1]["content"] += text["message"]["content"];
                                 if (text["done"] == true) {
-                                    console.log("Anzahl der Tokens: " + text["eval_count"]);
                                     var tokenCount = document.getElementById('tokenCount');
                                     tokenCount.innerHTML = "Tokenanzahl: <b>" + text["eval_count"] + "</b>";
                                 }
                             }
                             catch (error) {
-                                console.error("Fehler beim Parsen der Antwort: ", error);
+                                writeToLog("Fehler beim Parsen der Antwort: " + error, true);
                             }
                         });
 
                     }
 
                     if (done) {
-                        console.log("Stream beendet.");
+                        writeToLog("Stream beendet.");
                         break;
                     }
                 }
 
             },
             onerror: function(error) {
-                console.error("Fehler bei der Anfrage: ", error);
+                writeToLog("Fehler bei der Anfrage: " + error);
             }
         });
     }
@@ -815,7 +986,7 @@
         text = text.replace(/\n/g, "<br>");
         var modal = document.getElementById('chatMessages');
         if (!modal) {
-            console.log("Modal nicht gefunden! Text konnte nicht gerendert werden.");
+            writeToLog("Modal nicht gefunden! Text konnte nicht gerendert werden.");
         }
         else {
             var message = document.getElementById('modalText');
@@ -837,23 +1008,36 @@
         }
     }
 
+    //Modal verstecken
+    function hideModal() {
+        var modal = document.getElementById('modalOverlay');
+        modal.style.display = 'none';
+        writeToLog("Modal wurde versteckt.");
+    }
+
     //Modal schließen
-    function closeModal() {
+    function closeSystem() {
         var modal = document.getElementById('modal');
         modal.remove();
         var overlay = document.getElementById('modalOverlay');
         overlay.remove();
+        var aiButton = document.getElementById('aiButton');
+        aiButton.remove();
+        console.log("KI-Tutor wurde geschlossen.");
+        writeToLog("KI-Tutor wurde geschlossen.");
+        //GM_unregisterMenuCommand(menuCommandId);
     }
 
 
     //Chatverlauf speichern
-    function saveChatHistoryToFile(model) {
+    function saveChatHistoryToDataBase(model) {
+        writeToLog("Chatverlauf wird in Datenbank gespeichert.");
         var chatHistoryText = "";
         var date = new Date();
         var options = { year: 'numeric', month: '2-digit', day: '2-digit' };
         var formattedDate = date.toLocaleString('de-DE', options).split('.').reverse().join('-');
         if (chatHistory.length === 0) {
-            console.log('Chatverlauf ist leer.');
+            writeToLog('Chatverlauf ist leer.');
             return;
         }
 
@@ -882,24 +1066,13 @@
                 "xc-token": storageAPI["key"]
             },
             onload: function(response) {
-                console.log("Chatverlauf wurde gespeichert.");
+                writeToLog("Chatverlauf wurde gespeichert.");
             },
             onerror: function(error) {
-                console.error("Fehler beim Speichern des Chatverlaufs: ", error);
+                writeToLog("Fehler beim Speichern des Chatverlaufs: " + error, true);
             }
         });
     
-
-    }
-
-    function modalChooseContent() {
-        var modal = document.getElementById('modal');
-        var content = document.createElement('div');
-        content.id = 'modalContent';
-        modal.appendChild(content);
-        var html = getCardTextContent(sourceCards["content"]);
-        console.log("HTML: " + html);
-        content.innerHTML = html;
 
     }
 
