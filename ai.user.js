@@ -9,7 +9,7 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @connect      136.243.1.228
-// @downloadURL  https://github.com/steedalot/NBCAI/raw/beta/ai.user.js
+// @downloadURL  https://github.com/steedalot/NBCAI/raw/main/ai.user.js
 // ==/UserScript==
 
 
