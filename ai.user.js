@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.7
+// @version      0.8
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -681,7 +681,7 @@
 
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
-    const version = "0.7";
+    const version = "0.8";
     var menuCommandId = "";
     var me = {};
     var authToken = "";
@@ -694,7 +694,11 @@
         "keyCardId": "661905f15a3f6c2c9ecddc39",
         "url": "",
         "key": "",
-        "systemPrompt": ""};
+        "systemPrompt": "",
+        "language_quality": 0,
+        "prompt_adherence": 0,
+        "document_adherence": 0
+    };
 
 
 
@@ -1086,6 +1090,53 @@
         saveDataBaseSettings.className = 'saveDataBaseSettings';
         saveDataBaseSettings.innerHTML = `
             <b>Chat in Datenbank speichern</b><br><br>
+            Bewertung der Sprachqualität:<br>
+            <div id="language_quality">
+                <span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span>
+            </div><br>
+            Bewertung der Orientierung am Prompt:<br>
+            <div id="prompt_adherence">
+                <span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span>
+            </div><br>
+            Bewertung der Orientierung an den Inhalten:<br>
+            <div id="document_adherence">
+                <span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span><span style="cursor: pointer">☆</span>
+            </div><br><br>
+            <b>Kommentar:</b><br><br>
+            <textarea id="quality_comment" style="width: 100%; height: 100px; background-color: #FFFFFF"></textarea><br><br><br><br>
+            <button id="saveDataBase" style="background-color: ${standardColors["blue"]}; color: white; padding: 12px 14px; border: none; cursor: pointer; opacity: 0.9; border-radius: 4px;">Speichern</button>
+        `;
+
+
+
+
+
+
+        //Statistiken während des Chats
+        var chatStatistics = document.createElement('div');
+        chatStatistics.id = 'chatStatistics';
+        chatStatistics.className = 'chatStatistics';
+        chatStatistics.innerHTML = `
+            <b>Chat-Statistiken</b><br><br>
+        `;
+
+        var tokenCount = document.createElement('p');
+        tokenCount.id = 'tokenCount';
+        tokenCount.innerHTML = "Anzahl der Tokens: 0";
+
+        var timeCount = document.createElement('p');
+        timeCount.id = 'timeCount';
+        timeCount.innerHTML = "Dauer der Antwort:";
+
+        chatStatistics.appendChild(tokenCount);
+        chatStatistics.appendChild(timeCount);
+
+        //Settings zum Speichern in die Datenbank
+        var saveDataBaseSettings = document.createElement('div');
+        saveDataBaseSettings.id = 'saveDataBaseSettings';
+        saveDataBaseSettings.className = 'saveDataBaseSettings';
+        saveDataBaseSettings.innerHTML = `
+            <b>Chat in Datenbank speichern</b><br><br>
             Rest kommt noch...
         `;
 
@@ -1263,6 +1314,37 @@
             }
         });
 
+        //Erstelle den Event-Listener für die Bewertung der Qualität
+        var qualities = ["language_quality", "prompt_adherence", "document_adherence"];
+        var stars = [];
+        for (var i = 0; i < qualities.length; i++) {
+            stars[i] = document.getElementById(qualities[i]).querySelectorAll('span');
+            console.log("Sterne für " + qualities[i] + " werden angelegt.");
+            for (var j = 0; j < stars[i].length; j++) {
+                (function(i, j) {
+                    stars[i][j].addEventListener('click', function() {
+                        // Set all stars to gray
+                        for (var k = 0; k < stars[i].length; k++) {
+                            stars[i][k].style.color = 'gray';
+                        }
+            
+                        // Set the clicked star and all previous stars to gold
+                        this.style.color = 'gold';
+                        var prevSibling = this.previousElementSibling;
+                        while (prevSibling) {
+                            prevSibling.style.color = 'gold';
+                            prevSibling = prevSibling.previousElementSibling;
+                        }
+            
+                        // Set the rating value
+                        var rating = j + 1;
+                        storageAPI[qualities[i]] = rating;
+                        console.log("Rating von " + qualities[i] + ": " + rating);
+                    });
+                })(i, j);
+            }
+        }
+
 
         // Erstelle den Event-Listener für das Eingabefeld
         input.addEventListener('keydown', function(event) {
@@ -1296,6 +1378,10 @@
         resetButton.addEventListener('click', function() {
             chatHistory = [];
             renderToModal("");
+            storageAPI["systemPrompt"] = "";
+            storageAPI["language_quality"] = null;
+            storageAPI["prompt_adherence"] = null;
+            storageAPI["document_adherence"] = null;
             promptSelect.selectedIndex = 0;
             modelSelect.selectedIndex = 0;
             input.value = Object.values(promptCards)[0];
@@ -1308,6 +1394,22 @@
             saveDataBaseSettings.style.display = "none";
             saveDatabaseButton.style.backgroundColor = standardColors["blue"];
             chatStatistics.style.display = "none";
+
+            for (var i = 0; i < spans.length; i++) {
+                // Überprüfen Sie, ob das Element den Stil "cursor: pointer" hat
+                var style = window.getComputedStyle(spans[i]);
+                if (style.cursor === 'pointer') {
+                    // Setzen Sie die Farbe des Elements auf Grau
+                    spans[i].style.color = 'gray';
+                }
+            }
+
+            storageAPI["language_quality"] = null;
+            storageAPI["prompt_adherence"] = null;
+            storageAPI["document_adherence"] = null;
+
+            var commentTextfield = document.getElementById('quality_comment');
+            commentTextfield.value = "";
         });
 
 
@@ -1333,7 +1435,7 @@
             input.value = "";
         });
 
-        // Erstelle den Event-Listener für den Speichern-Button
+        // Erstelle den Event-Listener für den Umschalt-Button
         saveDatabaseButton.addEventListener('click', function() {
             //saveChatHistoryToDataBase(selectedModel, saveDatabaseButton);
             if (window.getComputedStyle(chatStatistics).display === 'block') {
@@ -1354,6 +1456,12 @@
                 chatStatistics.style.display = "block";
                 saveDatabaseButton.style.backgroundColor = standardColors["blue"];
             }
+        });
+
+        var writeToDataBaseButton = document.getElementById('saveDataBase');
+        writeToDataBaseButton.addEventListener('click', function() {
+            var commentTextfield = document.getElementById('quality_comment');
+            saveChatHistoryToDataBase(selectedModel, writeToDataBaseButton, commentTextfield);
         });
 
         saveFileButton.addEventListener('click', function() {
@@ -1537,12 +1645,9 @@
 
 
     //Chatverlauf speichern
-    function saveChatHistoryToDataBase(model, button) {
+    function saveChatHistoryToDataBase(model, button, commentTextfield) {
         writeToLog("Chatverlauf wird in Datenbank gespeichert.");
         var chatHistoryText = "";
-        var date = new Date();
-        var options = { year: 'numeric', month: '2-digit', day: '2-digit' };
-        var formattedDate = date.toLocaleString('de-DE', options).split('.').reverse().join('-');
         if (chatHistory.length === 0) {
             writeToLog('Chatverlauf ist leer.');
             return;
@@ -1558,13 +1663,14 @@
             url: storageAPI["url"],
             withCredentials: true,
             data: JSON.stringify({
-                "Datum": formattedDate,
+                "Sprache": storageAPI["language_quality"],
+                "Aufgabenerfüllung": storageAPI["prompt_adherence"],
+                "Begrenzung auf Boarddaten": storageAPI["document_adherence"],
                 "Benutzer:in": me.user.firstName,
                 "Modell": model,
-                "Bewertung": "",
                 "Systemprompt": storageAPI["systemPrompt"],
                 "Chatverlauf": chatHistoryText,
-                "Kommentare": "",
+                "Kommentare": commentTextfield.value,
                 "Board": "https://niedersachsen.cloud/rooms/" + boardId + "/board"
 
             }),
@@ -1576,9 +1682,25 @@
                 writeToLog("Chatverlauf wurde gespeichert.");
                 button.style.backgroundColor = standardColors["green"];
                 button.innerHTML = "✔️";
+                commentTextfield.value = "";
+                var spans = document.querySelectorAll('span');
+
+                for (var i = 0; i < spans.length; i++) {
+                    // Überprüfen Sie, ob das Element den Stil "cursor: pointer" hat
+                    var style = window.getComputedStyle(spans[i]);
+                    if (style.cursor === 'pointer') {
+                        // Setzen Sie die Farbe des Elements auf Grau
+                        spans[i].style.color = 'gray';
+                    }
+                }
+                
+                storageAPI["language_quality"] = null;
+                storageAPI["prompt_adherence"] = null;
+                storageAPI["document_adherence"] = null;
+
                 setTimeout(function() {
                     button.style.backgroundColor = standardColors["blue"];
-                    button.innerHTML = "🗃️";
+                    button.innerHTML = "Speichern";
                 }, 2000);
                 
 
