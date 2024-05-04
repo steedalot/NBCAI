@@ -9,7 +9,8 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @connect      136.243.1.228
-// @downloadURL  https://github.com/steedalot/NBCAI/raw/beta/ai.user.js
+// @downloadURL  https://github.com/steedalot/NBCAI/raw/main/ai.user.js
+// @require      https://unpkg.com/showdown@2.1.0/dist/showdown.min.js
 // ==/UserScript==
 
 
@@ -1520,6 +1521,7 @@
                 chatHistory[chatHistory.length] = {};
                 chatHistory[chatHistory.length-1]["role"] = "assistant";
                 chatHistory[chatHistory.length-1]["content"] = "";
+                chatHistory[chatHistory.length-1]["dom_element"] = document.createElement('div');
                 
                 
                 while (true) {
@@ -1568,7 +1570,7 @@
         });
     }
 
-    //Text in das Modal rendern
+    //Text direkt in das Modal rendern
     function renderToModal(text, type = "standard", stream = false) {
         text = text.replace(/\n/g, "<br>");
         var modal = document.getElementById('chatMessages');
@@ -1587,9 +1589,11 @@
                 message.innerHTML += text;
                 let scrollableChatMessages = document.querySelector('.chatMessages');
                 scrollableChatMessages.scrollTop = scrollableChatMessages.scrollHeight;
+                console.log("Stream!");
             }
             else {
                 message.innerHTML = text;
+                console.log("No Stream!");
             }
             
         }
