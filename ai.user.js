@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.8
+// @version      0.81
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -681,7 +681,7 @@
 
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
-    const version = "0.8";
+    const version = "0.81";
     var menuCommandId = "";
     var me = {};
     var authToken = "";
@@ -1074,7 +1074,10 @@
             <b>Einstellungen</b><br><br>
             Wähle einen Prompt aus:<br>
             <select id="promptSelect" style="all: revert;">
-                ${Object.keys(promptCards).map(title => `<option value="${promptCards[title]}">${title}</option>`).join('')}
+             ${Object.keys(promptCards).map(title => {
+                let value = promptCards[title].replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+                return `<option value="${value}">${title}</option>`;
+                }).join('')}
             </select>
             <br>
             <br>
