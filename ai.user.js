@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.82
+// @version      0.83
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -681,7 +681,7 @@
 
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
-    const version = "0.82";
+    const version = "0.83";
     var menuCommandId = "";
     var me = {};
     var authToken = "";
