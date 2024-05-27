@@ -933,9 +933,11 @@
                             allText += element.content.text;
                         }
                     }
+                    allText = allText.replace(/<\/p>/g, "\n");
                     var temporary_div = document.createElement('div');
                     temporary_div.innerHTML = allText;
-                    var clearedText = temporary_div.textContent;
+                    var clearedText = temporary_div.innerText;
+                    clearedText = clearedText.replace("[data]", "\n[data]\n");
                     temporary_div.remove();
                     resolve({allText: clearedText, title: title});
                 },
