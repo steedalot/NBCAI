@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.81
+// @version      0.82
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -681,7 +681,7 @@
 
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
-    const version = "0.81";
+    const version = "0.82";
     var menuCommandId = "";
     var me = {};
     var authToken = "";
@@ -697,7 +697,8 @@
         "systemPrompt": "",
         "language_quality": 0,
         "prompt_adherence": 0,
-        "document_adherence": 0
+        "document_adherence": 0,
+        "prompt_title": ""
     };
 
 
@@ -1271,6 +1272,7 @@
         
         promptSelect.addEventListener('change', function() {
             var selectedPrompt = promptSelect.options[promptSelect.selectedIndex].value;
+            storageAPI["prompt_title"] = promptSelect.options[promptSelect.selectedIndex].text;
             if (debug) {
                 console.log("Ausgewählter Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
             }
@@ -1357,6 +1359,7 @@
             storageAPI["language_quality"] = null;
             storageAPI["prompt_adherence"] = null;
             storageAPI["document_adherence"] = null;
+            storageAPI["prompt_title"] = "";
             promptSelect.selectedIndex = 0;
             modelSelect.selectedIndex = 0;
             input.value = Object.values(promptCards)[0];
@@ -1643,6 +1646,7 @@
                 "Begrenzung auf Boarddaten": storageAPI["document_adherence"],
                 "Benutzer:in": me.user.firstName,
                 "Modell": model,
+                "Prompttitel": storageAPI["prompt_title"],
                 "Systemprompt": storageAPI["systemPrompt"],
                 "Chatverlauf": chatHistoryText,
                 "Kommentare": commentTextfield.value,
@@ -1672,6 +1676,7 @@
                 storageAPI["language_quality"] = null;
                 storageAPI["prompt_adherence"] = null;
                 storageAPI["document_adherence"] = null;
+                storageAPI["prompt_title"] = "";
 
                 setTimeout(function() {
                     button.style.backgroundColor = standardColors["blue"];
