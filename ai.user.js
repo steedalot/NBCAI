@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NBCAI
 // @namespace    YourNamespace
-// @version      0.83
+// @version      0.9
 // @description  KI-Assistent und Tutor für die NBC
 // @author       Daniel Gaida, N-21
 // @match        https://niedersachsen.cloud/*
@@ -464,7 +464,7 @@
     var standardColors = {"red": "#D81E5B", "orange": "#CD8B76", "green": "#B0E298", "blue": "#8EB8E5", "yellow": "#EEF1BD" }
     var modalCSS = `.modal-overlay {
             position: fixed;
-            z-index: 100;
+            z-index: 2000;
             left: 0;
             top: 0;
             width: 100%;
@@ -476,7 +476,7 @@
 
         .modal {
             background-color: #fff;
-            z-index: 101;
+            z-index: 3000;
             margin: auto;
             border: 1px solid #ccc;
             border-radius: 5px;
@@ -681,7 +681,7 @@
 
     
     const aiBoardId = "65afcedc5b38f1915d3b476e";
-    const version = "0.83";
+    const version = "0.9";
     var menuCommandId = "";
     var me = {};
     var authToken = "";
@@ -1160,7 +1160,7 @@
                         checkbox.type = "checkbox";
                         checkbox.id = card.cardId;
                         checkbox.name = "dataText";
-                        checkbox.value = result.allText;
+                        checkbox.value = result.title + "\n " + result.allText;
                         checkbox.style = "margin-left: 5px;";
                         var label = document.createElement('label');
                         label.htmlFor = checkbox.id;
@@ -1277,6 +1277,7 @@
             storageAPI["prompt_title"] = promptSelect.options[promptSelect.selectedIndex].text;
             if (debug) {
                 console.log("Ausgewählter Prompt: ", promptSelect.options[promptSelect.selectedIndex].text);
+                console.log("Der Titel des Prompts ist: ", storageAPI["prompt_title"]);
             }
             if (sendButton.innerHTML === "Beginnen") {
                 input.value = selectedPrompt;
@@ -1678,7 +1679,6 @@
                 storageAPI["language_quality"] = null;
                 storageAPI["prompt_adherence"] = null;
                 storageAPI["document_adherence"] = null;
-                storageAPI["prompt_title"] = "";
 
                 setTimeout(function() {
                     button.style.backgroundColor = standardColors["blue"];
